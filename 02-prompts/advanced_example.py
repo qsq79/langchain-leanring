@@ -6,6 +6,7 @@ LangChain Prompts 组件高级示例
 """
 
 import os
+import sys
 import re
 import json
 import asyncio
@@ -24,8 +25,12 @@ import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.cluster import KMeans
 
-# 设置API密钥（请替换为您的实际密钥）
-os.environ["OPENAI_API_KEY"] = "your-openai-api-key-here"
+# 添加utils目录到系统路径，以便导入配置加载器
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+from utils.config_loader import setup_openai_config
+
+# 从环境变量加载API配置
+setup_openai_config()
 
 class CustomPromptTemplate(BasePromptTemplate, BaseModel):
     """自定义提示模板示例"""

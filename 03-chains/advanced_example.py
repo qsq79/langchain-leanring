@@ -6,6 +6,7 @@ LangChain Chains 组件高级示例
 """
 
 import os
+import sys
 import asyncio
 import time
 from typing import Dict, List, Any, Optional, Union
@@ -20,8 +21,12 @@ from langchain_core.exceptions import LangChainException
 import json
 import logging
 
-# 设置API密钥（请替换为您的实际密钥）
-os.environ["OPENAI_API_KEY"] = "your-openai-api-key-here"
+# 添加utils目录到系统路径，以便导入配置加载器
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+from utils.config_loader import setup_openai_config
+
+# 从环境变量加载API配置
+setup_openai_config()
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)

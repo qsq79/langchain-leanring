@@ -6,6 +6,7 @@ LangChain Agents 组件基础示例
 """
 
 import os
+import sys
 from typing import Dict, List, Any
 from langchain_openai import ChatOpenAI, OpenAI
 from langchain.agents import (
@@ -22,9 +23,12 @@ from langchain_community.tools import WikipediaQueryRun
 from langchain_community.utilities import WikipediaAPIWrapper
 from langchain import hub
 
-# 设置API密钥（请替换为您的实际密钥）
-os.environ["OPENAI_API_KEY"] = "your-openai-api-key-here"
-os.environ["SERPAPI_API_KEY"] = "your-serpapi-key-here"  # 用于搜索工具
+# 添加utils目录到系统路径，以便导入配置加载器
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+from utils.config_loader import setup_all_configs
+
+# 从环境变量加载所有API配置
+setup_all_configs()
 
 def simple_react_agent_example():
     """简单的ReAct Agent示例"""

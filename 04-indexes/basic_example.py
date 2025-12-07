@@ -6,13 +6,14 @@ LangChain Indexes 组件基础示例
 """
 
 import os
+import sys
 import tempfile
 from typing import List, Dict, Any
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.document_loaders import TextLoader, CSVLoader, JSONLoader, WebBaseLoader
 from langchain_community.vectorstores import FAISS, Chroma
 from langchain.text_splitter import (
-    CharacterTextSplitter, 
+    CharacterTextSplitter,
     RecursiveCharacterTextSplitter,
     TokenTextSplitter,
     MarkdownTextSplitter
@@ -21,8 +22,12 @@ from langchain_core.documents import Document
 from langchain.chains import RetrievalQA
 from langchain_openai import ChatOpenAI
 
-# 设置API密钥（请替换为您的实际密钥）
-os.environ["OPENAI_API_KEY"] = "your-openai-api-key-here"
+# 添加utils目录到系统路径，以便导入配置加载器
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+from utils.config_loader import setup_openai_config
+
+# 从环境变量加载API配置
+setup_openai_config()
 
 def create_sample_documents():
     """创建示例文档"""
