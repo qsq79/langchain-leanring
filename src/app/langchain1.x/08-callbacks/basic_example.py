@@ -16,10 +16,13 @@ from langchain_core.callbacks import (
     FileCallbackHandler
 )
 from langchain_core.outputs import LLMResult
-from langchain.chains import LLMChain
-from langchain.prompts import PromptTemplate
-from langchain.agents import create_react_agent, AgentExecutor
-from langchain.tools import Tool
+from langchain_core.prompts import PromptTemplate
+from langchain_community.tools import Tool
+
+# Chain and Agent components in LangChain 1.x
+from langchain_classic.chains import LLMChain
+from langchain_classic.agents import create_react_agent, AgentExecutor
+
 import json
 
 # 使用绝对导入配置加载器

@@ -638,7 +638,7 @@ def performance_comparison_example():
     
     try:
         # 比较不同的分割器
-        from langchain.text_splitter import RecursiveCharacterTextSplitter
+        from langchain_text_splitters import RecursiveCharacterTextSplitter
         
         print("比较分割器性能:")
         

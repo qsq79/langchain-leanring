@@ -16,8 +16,8 @@ from abc import ABC, abstractmethod
 from langchain_core.callbacks import AsyncCallbackHandler, BaseCallbackHandler
 from langchain_core.outputs import LLMResult
 from langchain_openai import OpenAI, ChatOpenAI
-from langchain.chains import LLMChain
-from langchain.prompts import PromptTemplate
+from langchain_classic.chains import LLMChain
+from langchain_core.prompts import PromptTemplate
 import aiofiles
 import aiohttp
 from collections import defaultdict, deque

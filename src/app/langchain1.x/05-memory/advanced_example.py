@@ -17,13 +17,11 @@ from langchain_openai import OpenAI, ChatOpenAI
 from langchain_core.memory import BaseMemory
 from langchain_core.chat_memory import BaseChatMemory
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, get_buffer_string
-from langchain.chains import LLMChain, ConversationChain
-from langchain.prompts import PromptTemplate, ChatPromptTemplate
-from langchain.memory import (
+from langchain_classic.chains import LLMChain, ConversationChain
+from langchain_core.prompts import PromptTemplate, ChatPromptTemplate
+from langchain_classic.memory import (
     ConversationBufferMemory,
-    VectorStoreRetrieverMemory,
-    MongoDBChatMessageHistory,
-    RedisChatMessageHistory
+    VectorStoreRetrieverMemory
 )
 from langchain_community.vectorstores import FAISS
 from langchain_openai import OpenAIEmbeddings

@@ -9,18 +9,20 @@ import os
 import sys
 from typing import Dict, List, Any
 from langchain_openai import ChatOpenAI, OpenAI
-from langchain.agents import (
+from langchain_core.prompts import PromptTemplate
+from langchain_core.messages import SystemMessage
+from langchain_community.tools import Tool
+from langchain_community.tools import WikipediaQueryRun
+from langchain_community.utilities import WikipediaAPIWrapper
+
+# Agent components in LangChain 1.x
+from langchain_classic.agents import (
     create_react_agent,
     create_structured_chat_agent,
     create_openai_functions_agent,
     AgentExecutor,
     load_tools
 )
-from langchain.prompts import PromptTemplate
-from langchain.tools import Tool
-from langchain_core.messages import SystemMessage
-from langchain_community.tools import WikipediaQueryRun
-from langchain_community.utilities import WikipediaAPIWrapper
 from langchain import hub
 
 # 使用绝对导入配置加载器

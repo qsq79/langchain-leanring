@@ -10,7 +10,6 @@ import sys
 import time
 from typing import Dict, List, Any, Optional
 from langchain_openai import OpenAI
-from langchain.tools import Tool, tool
 from langchain_community.tools import (
     WikipediaQueryRun,
     DuckDuckGoSearchRun,
@@ -19,8 +18,12 @@ from langchain_community.tools import (
 )
 from langchain_community.utilities import WikipediaAPIWrapper
 from pydantic import BaseModel, Field
-from langchain.agents import create_react_agent, AgentExecutor
-from langchain.prompts import PromptTemplate
+from langchain_core.prompts import PromptTemplate
+
+# Tool components in LangChain 1.x
+from langchain_classic.tools import Tool, tool
+from langchain_classic.agents import create_react_agent, AgentExecutor
+
 import requests
 import json
 import math

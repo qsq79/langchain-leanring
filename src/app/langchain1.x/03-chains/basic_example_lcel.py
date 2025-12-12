@@ -3,12 +3,6 @@
 """
 LangChain Chains 组件基础示例 (LangChain 1.x / LCEL 版本)
 演示如何使用 LangChain Expression Language (LCEL) 替代传统的 Chain 组件
-
-在 LangChain 1.x 中：
-- 不再推荐使用 LLMChain、SequentialChain 等传统类
-- 推荐使用 LCEL 语法：prompt | llm | output_parser
-- 使用 pipe operator (|) 组合组件
-- 使用 RunnablePassthrough、RunnableParallel 等进行复杂流控制
 """
 
 import os
@@ -31,7 +25,7 @@ from src.app.utils.config_loader import setup_openai_config
 setup_openai_config()
 
 def basic_lcel_chain_example():
-    """基础 LCEL Chain 示例 - 替代 LLMChain"""
+    """基础 LCEL Chain 示例"""
     print("=== 基础 LCEL Chain 示例 ===")
 
     # 创建LLM实例
@@ -44,7 +38,6 @@ def basic_lcel_chain_example():
     )
 
     # 使用LCEL创建chain (替代传统的LLMChain)
-    # prompt | llm | StrOutputParser() 是 LangChain 1.x 的标准写法
     chain = prompt | llm | StrOutputParser()
 
     # 执行Chain
@@ -72,7 +65,7 @@ def basic_lcel_chain_example():
     print()
 
 def sequential_chain_lcel_example():
-    """顺序链 LCEL 示例 - 替代 SimpleSequentialChain"""
+    """顺序链 LCEL 示例"""
     print("=== 顺序链 LCEL 示例 ===")
 
     # 创建LLM实例
@@ -89,7 +82,7 @@ def sequential_chain_lcel_example():
         input_variables=["outline"]
     )
 
-    # 方法1: 使用 RunnablePassthrough.assign 进行顺序处理
+    # 使用LCEL创建顺序链 (替代SimpleSequentialChain)
     story_chain = (
         {"outline": outline_prompt | llm | StrOutputParser()}
         | RunnablePassthrough.assign(story=expansion_prompt | llm | StrOutputParser())
@@ -106,7 +99,7 @@ def sequential_chain_lcel_example():
     print()
 
 def complex_sequential_chain_example():
-    """复杂顺序链 LCEL 示例 - 替代 SequentialChain"""
+    """复杂顺序链 LCEL 示例"""
     print("=== 复杂顺序链 LCEL 示例 ===")
 
     # 创建LLM实例
@@ -128,16 +121,23 @@ def complex_sequential_chain_example():
         input_variables=["explanation"]
     )
 
-    # 创建各个处理步骤的链
+    # 使用LCEL创建复杂顺序链 (替代SequentialChain)
     analysis_chain = analysis_prompt | llm | StrOutputParser()
     explanation_chain = explanation_prompt | llm | StrOutputParser()
     examples_chain = examples_prompt | llm | StrOutputParser()
 
-    # 使用LCEL创建复杂顺序链
     overall_chain = (
-        RunnablePassthrough.assign(analysis=analysis_chain)
-        | RunnablePassthrough.assign(explanation=lambda x: explanation_chain.invoke({"analysis": x["analysis"]}))
-        | RunnablePassthrough.assign(examples=lambda x: examples_chain.invoke({"explanation": x["explanation"]}))
+        RunnablePassthrough.assign(
+            analysis=analysis_chain
+        ).assign(
+            explanation=RunnablePassthrough.assign(
+                analysis=lambda x: x["analysis"]
+            ) | {"explanation": explanation_chain}
+        ).assign(
+            examples=RunnablePassthrough.assign(
+                explanation=lambda x: x["explanation"]
+            ) | {"examples": examples_chain}
+        )
     )
 
     # 执行Chain
@@ -153,53 +153,8 @@ def complex_sequential_chain_example():
     print(f"应用示例: {result['examples']}")
     print()
 
-def transform_chain_lcel_example():
-    """转换链 LCEL 示例 - 替代 TransformChain"""
-    print("=== 转换链 LCEL 示例 ===")
-
-    # 定义转换函数
-    def text_analyzer(text: str) -> Dict[str, Any]:
-        """分析文本的统计信息"""
-        word_count = len(text.split())
-        char_count = len(text.strip())
-        return {
-            "original_text": text,
-            "word_count": word_count,
-            "char_count": char_count
-        }
-
-    # 创建LLM实例
-    llm = OpenAI(model="gpt-3.5-turbo-instruct", temperature=0.3)
-
-    # 创建分析链
-    analysis_chain = RunnableLambda(lambda x: text_analyzer(x["text"]))
-
-    # 创建总结prompt
-    summary_prompt = PromptTemplate(
-        template="请总结以下文本（字数：{word_count}，字符数：{char_count}）：\n{original_text}",
-        input_variables=["original_text", "word_count", "char_count"]
-    )
-
-    summary_chain = summary_prompt | llm | StrOutputParser()
-
-    # 组合分析链和总结链
-    overall_chain = analysis_chain | summary_chain
-
-    # 执行Chain
-    text = """
-    人工智能（AI）是计算机科学的一个分支，它致力于创造能够执行通常需要人类智能的任务的机器。
-    这些任务包括学习、推理、问题解决、感知和语言理解。AI技术已经广泛应用于各个领域，
-    从自动驾驶汽车到医疗诊断，从金融分析到创意艺术。
-    """
-
-    result = overall_chain.invoke({"text": text})
-
-    print(f"原文: {text}")
-    print(f"总结: {result}")
-    print()
-
-def parallel_chain_lcel_example():
-    """并行链 LCEL 示例 - 使用 RunnableParallel"""
+def parallel_chain_example():
+    """并行链 LCEL 示例"""
     print("=== 并行链 LCEL 示例 ===")
 
     # 创建LLM实例
@@ -245,7 +200,7 @@ def parallel_chain_lcel_example():
     print()
 
 def router_chain_lcel_example():
-    """路由链 LCEL 示例 - 替代 RouterChain"""
+    """路由链 LCEL 示例"""
     print("=== 路由链 LCEL 示例 ===")
 
     # 创建LLM实例
@@ -313,6 +268,60 @@ def router_chain_lcel_example():
         print(f"回答: {result}")
         print("-" * 50)
 
+def conditional_chain_example():
+    """条件链 LCEL 示例"""
+    print("=== 条件链 LCEL 示例 ===")
+
+    # 创建LLM实例
+    llm = OpenAI(model="gpt-3.5-turbo-instruct", temperature=0.3)
+
+    # 定义不同条件的prompts
+    simple_prompt = PromptTemplate(
+        template="请简单回答：{question}",
+        input_variables=["question"]
+    )
+
+    detailed_prompt = PromptTemplate(
+        template="请详细回答，包含背景信息和示例：{question}",
+        input_variables=["question"]
+    )
+
+    # 创建简单的和详细的chains
+    simple_chain = simple_prompt | llm | StrOutputParser()
+    detailed_chain = detailed_prompt | llm | StrOutputParser()
+
+    # 条件函数
+    def should_be_detailed(x):
+        """根据问题复杂度决定使用简单还是详细回答"""
+        question = x["question"]
+        # 如果问题包含"详细"、"解释"、"为什么"等词，使用详细回答
+        detailed_keywords = ["详细", "解释", "为什么", "如何", "原理"]
+        return any(keyword in question for keyword in detailed_keywords)
+
+    # 条件路由
+    def conditional_route(x):
+        if should_be_detailed(x):
+            return detailed_chain.invoke(x)
+        else:
+            return simple_chain.invoke(x)
+
+    # 创建条件链
+    conditional_chain = RunnableLambda(conditional_route)
+
+    # 测试问题
+    test_questions = [
+        {"question": "什么是AI？"},
+        {"question": "请详细解释机器学习的原理"},
+        {"question": "Python是什么？"},
+        {"question": "为什么深度学习需要大量数据？"}
+    ]
+
+    for q in test_questions:
+        print(f"问题: {q['question']}")
+        result = conditional_chain.invoke(q)
+        print(f"回答: {result}")
+        print("-" * 50)
+
 def chat_lcel_example():
     """聊天模型 LCEL 示例"""
     print("=== 聊天模型 LCEL 示例 ===")
@@ -356,29 +365,43 @@ def chat_lcel_example():
         print(f"回答: {result}")
         print("=" * 50)
 
-def stream_chain_example():
-    """流式输出 LCEL 示例"""
-    print("=== 流式输出 LCEL 示例 ===")
+def error_handling_chain_example():
+    """错误处理 LCEL 示例"""
+    print("=== 错误处理 LCEL 示例 ===")
+
+    from langchain_core.runnables import RunnableParallel, RunnablePassthrough
+    from langchain_core.exceptions import LangChainException
 
     # 创建LLM实例
-    llm = OpenAI(model="gpt-3.5-turbo-instruct", temperature=0.7, streaming=True)
+    llm = OpenAI(model="gpt-3.5-turbo-instruct", temperature=0.3)
 
-    # 创建prompt和chain
+    # 创建prompt
     prompt = PromptTemplate(
-        template="请详细介绍什么是{topic}，包括定义、特点和应用：",
-        input_variables=["topic"]
+        template="请回答以下问题：{question}",
+        input_variables=["question"]
     )
 
+    # 创建基础链
     chain = prompt | llm | StrOutputParser()
 
-    # 流式执行
-    topic = "人工智能"
-    print(f"问题: 请详细介绍什么是{topic}")
+    # 添加错误处理的链
+    def safe_invoke(x):
+        try:
+            return chain.invoke(x)
+        except Exception as e:
+            return f"抱歉，处理问题时出现错误：{str(e)}。请稍后重试。"
 
-    print("回答（流式输出）:")
-    for chunk in chain.stream({"topic": topic}):
-        print(chunk, end="", flush=True)
-    print("\n")
+    safe_chain = RunnableLambda(safe_invoke)
+
+    # 测试正常情况
+    print("正常情况:")
+    result = safe_chain.invoke({"question": "什么是Python？"})
+    print(f"回答: {result}")
+
+    # 测试可能出错的情况
+    print("\n错误处理情况:")
+    result = safe_chain.invoke({"question": ""})  # 空问题可能导致错误
+    print(f"回答: {result}")
 
 async def async_lcel_example():
     """异步 LCEL 示例"""
@@ -413,66 +436,10 @@ async def async_lcel_example():
         print(f"   回答: {r}")
     print()
 
-def conditional_chain_example():
-    """条件链 LCEL 示例"""
-    print("=== 条件链 LCEL 示例 ===")
-
-    # 创建LLM实例
-    llm = OpenAI(model="gpt-3.5-turbo-instruct", temperature=0.3)
-
-    # 定义不同条件的prompts
-    simple_prompt = PromptTemplate(
-        template="请简单回答：{question}",
-        input_variables=["question"]
-    )
-
-    detailed_prompt = PromptTemplate(
-        template="请详细回答，包含背景信息和示例：{question}",
-        input_variables=["question"]
-    )
-
-    # 创建简单的和详细的chains
-    simple_chain = simple_prompt | llm | StrOutputParser()
-    detailed_chain = detailed_prompt | llm | StrOutputParser()
-
-    # 条件函数
-    def should_be_detailed(x):
-        """根据问题复杂度决定使用简单还是详细回答"""
-        question = x["question"]
-        detailed_keywords = ["详细", "解释", "为什么", "如何", "原理"]
-        return any(keyword in question for keyword in detailed_keywords)
-
-    # 条件路由
-    def conditional_route(x):
-        if should_be_detailed(x):
-            return detailed_chain.invoke(x)
-        else:
-            return simple_chain.invoke(x)
-
-    # 创建条件链
-    conditional_chain = RunnableLambda(conditional_route)
-
-    # 测试问题
-    test_questions = [
-        {"question": "什么是AI？"},
-        {"question": "请详细解释机器学习的原理"},
-        {"question": "Python是什么？"},
-        {"question": "为什么深度学习需要大量数据？"}
-    ]
-
-    for q in test_questions:
-        result = conditional_chain.invoke(q)
-        print(f"问题: {q['question']}")
-        print(f"回答: {result}")
-        print("-" * 50)
-
 def main():
     """主函数，运行所有示例"""
-    print("LangChain Chains 组件基础示例 (LangChain 1.x / LCEL 版本)")
-    print("=" * 60)
-    print("在 LangChain 1.x 中，推荐使用 LCEL (LangChain Expression Language)")
-    print("使用 pipe operator (|) 组合组件，而不是传统的 Chain 类")
-    print("=" * 60)
+    print("LangChain Chains 组件基础示例 (LCEL 版本)")
+    print("=" * 50)
     print()
 
     try:
@@ -483,11 +450,8 @@ def main():
         sequential_chain_lcel_example()
         complex_sequential_chain_example()
 
-        # 转换链示例
-        transform_chain_lcel_example()
-
         # 并行链示例
-        parallel_chain_lcel_example()
+        parallel_chain_example()
 
         # 路由链示例
         router_chain_lcel_example()
@@ -498,8 +462,8 @@ def main():
         # 聊天模型示例
         chat_lcel_example()
 
-        # 流式输出示例
-        stream_chain_example()
+        # 错误处理示例
+        error_handling_chain_example()
 
         # 异步示例
         print("运行异步示例...")

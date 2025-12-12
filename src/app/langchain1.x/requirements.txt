@@ -1,7 +1,14 @@
-# LangChain核心依赖 (所有模块共用)
+# LangChain 核心依赖 (LangChain 1.x 版本)
 langchain>=0.1.0
+langchain-core>=0.1.0
 langchain-openai>=0.1.0
 langchain-community>=0.1.0
+langchain-text-splitters>=0.1.0
+langchain-classic>=0.1.0
+
+# Memory components support
+redis>=4.0.0
+pymongo>=4.0.0
 
 # 数值计算和科学计算
 numpy>=1.24.0
@@ -30,20 +37,22 @@ beautifulsoup4>=4.12.0
 # 缓存支持
 gptcache>=0.1.0
 
-# 异步支持
-asyncio
-
 # 环境变量管理
 python-dotenv>=1.0.0
 
 # 开发和测试工具（可选）
 pytest>=7.0.0
 pytest-asyncio>=0.21.0
-# 其他 - 进度条显示工具
+
+# 其他工具
 tqdm>=4.64.0
 
-
-# 以下为各模块新增依赖，请在此处追加
-# 格式: # [模块名称] - [依赖说明]
-# 示例: # 09-rag - 新增的向量数据库支持
-# pinecone-client>=2.2.0
+# 各模块特定依赖
+# 01-models: 模型接口和异步支持
+# 02-prompts: 提示模板和解析器
+# 03-chains: LCEL 链式组合
+# 04-indexes: 文档加载和向量存储
+# 05-memory: 对话记忆组件
+# 06-agents: 智能体和工具
+# 07-tools: 外部工具集成
+# 08-callbacks: 回调和监控

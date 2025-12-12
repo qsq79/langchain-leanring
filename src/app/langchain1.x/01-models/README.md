@@ -1,102 +1,117 @@
-# LangChain Models 组件学习指南
+# LangChain Models 组件学习指南 (LangChain 1.x 版本)
 
-Models是LangChain框架中最基础的组件，负责与各种语言模型进行交互。本指南将详细介绍Models组件的核心概念、使用方法和最佳实践。
+Models是LangChain框架中最基础的组件，负责与各种语言模型进行交互。本指南将详细介绍Models组件在LangChain 1.x中的核心概念、使用方法和最佳实践。
 
-## 📋 核心知识点
+## 📋 LangChain 1.x 核心变化
 
-### 1. Models组件分类
+### 导入路径变化
+- **从 langchain 到 langchain_core**: 基础接口和消息类已移至 `langchain_core`
+- **专门包**: 提供商特定的包如 `langchain_openai`, `langchain_community`
+- **模块化架构**: 核心功能与社区插件分离
 
-#### 1.1 LLMs (Large Language Models)
-- **定义**：纯文本生成模型，输入字符串，输出字符串
-- **特点**：无状态、简单直接
-- **使用场景**：文本补全、翻译、摘要等
+### 新特性
+- **异步支持**: 所有的模型都支持异步调用
+- **LCEL兼容**: 与LangChain Expression Language完全兼容
+- **改进的错误处理**: 更好的异常处理和重试机制
 
-#### 1.2 Chat Models
-- **定义**：基于对话的模型，使用消息列表作为输入输出
-- **特点**：支持系统消息、角色区分、上下文管理
-- **使用场景**：对话系统、角色扮演、多轮交互
+## 🎯 Models组件分类
 
-#### 1.3 Text Embedding Models
-- **定义**：将文本转换为向量表示的模型
-- **特点**：高维向量、语义相似度计算
-- **使用场景**：语义搜索、文档聚类、推荐系统
+### 1. LLMs (Large Language Models)
 
-### 2. 核心接口设计
+#### LangChain 1.x 中的变化
+- 从 `langchain.llms` 移至 `langchain_openai.OpenAI`
+- 推荐使用 `ChatOpenAI` 替代传统 LLM
+- 增强的流式输出支持
 
-#### 2.1 BaseLLM接口
 ```python
-class BaseLLM(BaseLanguageModel[str]):
-    def _generate(self, prompts: List[str], **kwargs) -> LLMResult
-    def _llm_type(self) -> str
+# LangChain 1.x 推荐写法
+from langchain_openai import OpenAI
+
+llm = OpenAI(
+    model="gpt-3.5-turbo-instruct",
+    temperature=0.7
+)
+
+# 支持流式输出
+for chunk in llm.stream("写一首诗"):
+    print(chunk, end="")
+
+# 支持异步调用
+result = await llm.ainvoke("Hello, world!")
 ```
 
-#### 2.2 BaseChatModel接口
+### 2. Chat Models
+
+#### LangChain 1.x 新特性
+- 结构化输出支持
+- 更好的异步流式输出
+- 与 LCEL 完全兼容
+
 ```python
-class BaseChatModel(BaseLanguageModel[BaseMessage]):
-    def _generate(self, messages: List[List[BaseMessage]], **kwargs) -> ChatResult
-    def _llm_type(self) -> str
+# LangChain 1.x 推荐写法
+from langchain_openai import ChatOpenAI
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+
+# 创建聊天模型
+chat_model = ChatOpenAI(model="gpt-3.5-turbo")
+
+# 使用 LCEL 创建链
+prompt = ChatPromptTemplate.from_template("请用中文回答：{question}")
+chain = prompt | chat_model | StrOutputParser()
+
+# 执行
+result = chain.invoke({"question": "什么是AI？"})
 ```
 
-#### 2.3 BaseEmbeddings接口
+#### 结构化输出 (新特性)
 ```python
-class BaseEmbeddings(ABC):
-    def embed_documents(self, texts: List[str]) -> List[List[float]]
-    def embed_query(self, text: str) -> List[float]
+from langchain_core.output_parsers import JsonOutputParser
+from langchain_core.pydantic_v1 import BaseModel, Field
+
+class Answer(BaseModel):
+    summary: str = Field(description="回答摘要")
+    details: List[str] = Field(description="详细要点")
+
+parser = JsonOutputParser(pydantic_object=Answer)
+chain = prompt | chat_model | parser
+result = chain.invoke({"question": "什么是机器学习？"})
 ```
 
-### 3. 流式输出与异步支持
+### 3. Text Embedding Models
 
-#### 3.1 流式输出
-- 支持逐token生成
-- 实时响应提升用户体验
-- 适用于长文本生成场景
+#### LangChain 1.x 变化
+- 支持最新的 embedding 模型
+- 异步嵌入生成
+- 更好的批处理支持
 
-#### 3.2 异步调用
-- 支持async/await语法
-- 提高并发处理能力
-- 适用于高并发应用
+```python
+# LangChain 1.x 推荐写法
+from langchain_openai import OpenAIEmbeddings
 
-## 🎯 常见面试题
+# 使用最新模型
+embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
 
-### 基础概念题
+# 异步嵌入生成
+vector = await embeddings.aembed_query("查询文本")
 
-**Q1: LangChain中的LLM和Chat Model有什么区别？**
+# 批量异步处理
+texts = ["文本1", "文本2", "文本3"]
+tasks = [embeddings.aembed_query(text) for text in texts]
+vectors = await asyncio.gather(*tasks)
+```
 
-**A1:**
-- **输入输出格式**：LLM接受字符串输入输出字符串，Chat Model接受消息列表输入输出消息列表
-- **上下文管理**：Chat Model天然支持多轮对话和角色区分，LLM需要手动管理上下文
-- **功能特性**：Chat Model通常支持系统消息、功能调用等高级特性
-- **使用场景**：LLM适合简单的文本生成任务，Chat Model适合复杂的对话场景
+## 🔧 核心接口设计
 
-**Q2: 什么是Text Embedding，它在LangChain中的作用是什么？**
-
-**A2:**
-- **定义**：Text Embedding是将文本转换为高维数值向量的技术
-- **作用**：
-  - 语义相似度计算
-  - 文档检索和搜索
-  - 文本聚类和分类
-  - 推荐系统基础
-- **在LangChain中**：主要用于VectorStores和Retrieval Chain，实现基于语义的文档检索
-
-### 技术实现题
-
-**Q3: 如何实现一个自定义的LLM包装器？**
-
-**A3:**
+### 1. BaseLLM接口 (langchain_core)
 ```python
 from langchain_core.language_models.llms import BaseLLM
-from typing import Optional, List, Any
 
 class CustomLLM(BaseLLM):
-    def __init__(self, api_key: str, **kwargs):
-        super().__init__(**kwargs)
-        self.api_key = api_key
-    
     @property
     def _llm_type(self) -> str:
         return "custom_llm"
-    
+
     def _call(
         self,
         prompt: str,
@@ -104,188 +119,286 @@ class CustomLLM(BaseLLM):
         run_manager: Optional[CallbackManagerForLLMRun] = None,
         **kwargs: Any,
     ) -> str:
-        response = call_custom_api(prompt, self.api_key)
-        return response
-    
-    def _generate(
-        self,
-        prompts: List[str],
-        stop: Optional[List[str]] = None,
-        run_manager: Optional[CallbackManagerForLLMRun] = None,
-        **kwargs: Any,
-    ) -> LLMResult:
-        generations = []
-        for prompt in prompts:
-            text = self._call(prompt, stop, run_manager, **kwargs)
-            generations.append([Generation(text=text)])
-        return LLMResult(generations=generations)
+        # 实现
+        pass
+
+    async def _acall(self, prompt: str, **kwargs) -> str:
+        # 异步实现 (LangChain 1.x 新增)
+        pass
 ```
 
-**Q4: 如何处理LLM的流式输出？**
+### 2. BaseChatModel接口 (langchain_core)
+```python
+from langchain_core.language_models.chat_models import BaseChatModel
+
+class CustomChatModel(BaseChatModel):
+    def _generate(
+        self,
+        messages: List[List[BaseMessage]],
+        **kwargs: Any,
+    ) -> ChatResult:
+        # 实现
+        pass
+
+    async def _agenerate(
+        self,
+        messages: List[List[BaseMessage]],
+        **kwargs: Any,
+    ) -> ChatResult:
+        # 异步实现 (LangChain 1.x 新增)
+        pass
+```
+
+### 3. BaseEmbeddings接口 (langchain_core)
+```python
+from langchain_core.embeddings import Embeddings
+
+class CustomEmbeddings(Embeddings):
+    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+        # 实现
+        pass
+
+    def embed_query(self, text: str) -> List[float]:
+        # 实现
+        pass
+
+    async def aembed_documents(self, texts: List[str]) -> List[List[float]]:
+        # 异步实现 (LangChain 1.x 新增)
+        pass
+
+    async def aembed_query(self, text: str) -> List[float]:
+        # 异步实现 (LangChain 1.x 新增)
+        pass
+```
+
+## 🚀 LangChain 1.x 新特性
+
+### 1. 异步支持
+所有模型现在都支持异步操作：
+
+```python
+import asyncio
+from langchain_openai import ChatOpenAI
+
+chat_model = ChatOpenAI()
+
+# 并发处理多个请求
+async def process_questions():
+    questions = ["问题1", "问题2", "问题3"]
+    tasks = [chat_model.ainvoke([HumanMessage(content=q)]) for q in questions]
+    results = await asyncio.gather(*tasks)
+    return results
+
+results = asyncio.run(process_questions())
+```
+
+### 2. 改进的流式输出
+```python
+# 同步流式
+for chunk in chat_model.stream(messages):
+    print(chunk.content, end="")
+
+# 异步流式
+async for chunk in chat_model.astream(messages):
+    print(chunk.content, end="")
+```
+
+### 3. LCEL 集成
+```python
+from langchain_core.runnables import RunnablePassthrough, RunnableParallel
+
+# 创建复杂的处理链
+chain = (
+    RunnablePassthrough.assign(
+        embedding=lambda x: embeddings.embed_query(x["text"])
+    ) | RunnableParallel({
+        "summary": summary_prompt | chat_model | StrOutputParser(),
+        "keywords": keywords_prompt | chat_model | StrOutputParser()
+    })
+)
+```
+
+## 🎯 常见面试题 (LangChain 1.x 版本)
+
+### 基础概念题
+
+**Q1: LangChain 1.x 中 Models 组件的主要变化是什么？**
+
+**A1:**
+- **导入路径变化**: 从 `langchain` 移至 `langchain_core` 和专门包
+- **异步支持**: 所有模型都支持 `ainvoke()`, `astream()`, `abatch()` 等异步方法
+- **LCEL兼容**: 完全支持 LangChain Expression Language
+- **结构化输出**: Chat Models 支持原生结构化输出
+- **改进的错误处理**: 更好的异常处理和重试机制
+
+**Q2: 如何在 LangChain 1.x 中实现自定义LLM？**
+
+**A2:**
+```python
+from langchain_core.language_models.llms import BaseLLM
+from langchain_core.callbacks import CallbackManagerForLLMRun
+
+class CustomLLM(BaseLLM):
+    def _call(self, prompt: str, stop=None, run_manager=None, **kwargs):
+        # 同步实现
+        return response
+
+    async def _acall(self, prompt: str, stop=None, run_manager=None, **kwargs):
+        # 异步实现 (LangChain 1.x 新增)
+        await asyncio.sleep(0.1)  # 模拟网络延迟
+        return response
+
+    @property
+    def _llm_type(self) -> str:
+        return "custom_llm"
+```
+
+### 技术实现题
+
+**Q3: 如何在 LangChain 1.x 中实现结构化输出？**
+
+**A3:**
+```python
+from langchain_core.output_parsers import JsonOutputParser, PydanticOutputParser
+from langchain_core.pydantic_v1 import BaseModel, Field
+from typing import List
+
+# 定义输出结构
+class AnalysisResult(BaseModel):
+    summary: str = Field(description="摘要")
+    key_points: List[str] = Field(description="关键要点")
+    sentiment: str = Field(description="情感倾向")
+
+# 创建解析器
+parser = JsonOutputParser(pydantic_object=AnalysisResult)
+
+# 创建链
+prompt = ChatPromptTemplate.from_template(
+    "分析以下文本：{text}\n\n{format_instructions}"
+)
+chain = prompt | chat_model | parser
+
+# 执行
+result = chain.invoke({
+    "text": "要分析的文本",
+    "format_instructions": parser.get_format_instructions()
+})
+```
+
+**Q4: 如何处理模型的异步调用和错误重试？**
 
 **A4:**
 ```python
-from langchain_core.callbacks import StreamingStdOutCallbackHandler
+import asyncio
+from functools import wraps
+from langchain_core.exceptions import LangChainException
 
-streaming_handler = StreamingStdOutCallbackHandler()
-llm = OpenAI(streaming=True, callbacks=[streaming_handler])
+def retry_with_backoff(max_retries=3, backoff_factor=2.0):
+    def decorator(func):
+        @wraps(func)
+        async def async_wrapper(*args, **kwargs):
+            for attempt in range(max_retries):
+                try:
+                    return await func(*args, **kwargs)
+                except LangChainException as e:
+                    if attempt == max_retries - 1:
+                        raise
+                    await asyncio.sleep(backoff_factor ** attempt)
+        return async_wrapper
+    return decorator
 
-for chunk in llm.stream("写一首关于春天的诗"):
-    print(chunk.content, end="", flush=True)
-
-async def stream_response():
-    async for chunk in llm.astream("解释量子计算"):
-        print(chunk.content, end="", flush=True)
+@retry_with_backoff()
+async def robust_llm_call(prompt: str):
+    return await chat_model.ainvoke([HumanMessage(content=prompt)])
 ```
 
 ### 架构设计题
 
-**Q5: LangChain的Models组件采用了什么设计模式？**
+**Q5: LangChain 1.x 的 Models 组件架构设计有什么改进？**
 
 **A5:**
-- **适配器模式**：将不同LLM提供商的API统一为相同接口
-- **策略模式**：支持不同的模型选择和配置策略
-- **模板方法模式**：BaseLLM定义算法骨架，子类实现具体细节
-- **工厂模式**：通过from_pretrained等方法创建模型实例
+- **模块化分离**: 核心接口在 `langchain_core`，实现在专门包中
+- **异步优先**: 从设计层面支持异步操作
+- **LCEL集成**: 作为可运行组件完全集成到表达语言中
+- **类型安全**: 更好的类型提示和验证
+- **插件化**: 更容易添加新的模型提供商
 
-## 🏗️ 设计思路和设计模式
-
-### 1. 统一接口设计
-
-#### 1.1 适配器模式应用
-LangChain通过适配器模式解决了不同LLM提供商API差异的问题：
-
-```python
-llm = OpenAI()
-llm = Anthropic()
-llm = HuggingFaceHub()
-
-result = llm("Hello, world!")
-```
-
-#### 1.2 抽象工厂模式
-通过抽象工厂模式支持不同类型的模型创建：
-
-```python
-class ModelFactory:
-    @staticmethod
-    def create_llm(provider: str, **kwargs) -> BaseLLM:
-        if provider == "openai":
-            return OpenAI(**kwargs)
-        elif provider == "anthropic":
-            return Anthropic(**kwargs)
-```
-
-### 2. 扩展性设计
-
-#### 2.1 插件化架构
-- 通过继承基类轻松添加新的模型支持
-- 配置驱动的模型选择
-- 动态加载模型插件
-
-#### 2.2 中间件模式
-支持在模型调用前后添加中间件处理：
-
-```python
-class LoggingMiddleware:
-    def __call__(self, llm, prompt, **kwargs):
-        logger.info(f"Input: {prompt}")
-        result = llm(prompt, **kwargs)
-        logger.info(f"Output: {result}")
-        return result
-```
-
-### 3. 性能优化设计
-
-#### 3.1 缓存机制
-```python
-from langchain.cache import InMemoryCache
-from langchain.globals import set_llm_cache
-
-set_llm_cache(InMemoryCache())
-```
-
-#### 3.2 批处理优化
-```python
-prompts = ["prompt1", "prompt2", "prompt3"]
-results = llm.generate(prompts)
-```
-
-#### 3.3 异步支持
-```python
-import asyncio
-
-async def parallel_calls():
-    tasks = [llm.ainvoke(f"prompt {i}") for i in range(5)]
-    results = await asyncio.gather(*tasks)
-    return results
-```
-
-## 🚀 最佳实践
+## 🏗️ 最佳实践
 
 ### 1. 模型选择策略
-
-1. **任务匹配**：根据具体任务选择合适的模型类型
-2. **成本考虑**：平衡模型性能和使用成本
-3. **延迟要求**：根据实时性要求选择模型
-4. **准确性需求**：关键任务使用高精度模型
-
-### 2. 错误处理
-
 ```python
-from langchain_core.exceptions import LangChainException
-import time
-from functools import wraps
+# LangChain 1.x 推荐的模型选择
+def get_model(use_chat=True, use_async=False):
+    if use_chat:
+        return ChatOpenAI(model="gpt-3.5-turbo")
+    else:
+        return OpenAI(model="gpt-3.5-turbo-instruct")
 
-def retry_with_backoff(max_retries=3, backoff_factor=2):
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            for attempt in range(max_retries):
-                try:
-                    return func(*args, **kwargs)
-                except LangChainException as e:
-                    if attempt == max_retries - 1:
-                        raise
-                    wait_time = backoff_factor ** attempt
-                    time.sleep(wait_time)
-            return None
-        return wrapper
-    return decorator
-
-@retry_with_backoff()
-def safe_llm_call(prompt):
-    return llm.invoke(prompt)
+# 批量处理优化
+async def batch_process(texts):
+    embeddings = OpenAIEmbeddings()
+    tasks = [embeddings.aembed_query(text) for text in texts]
+    return await asyncio.gather(*tasks)
 ```
 
-### 3. 监控和日志
+### 2. 性能优化
+```python
+# 使用 LCEL 优化链式调用
+optimized_chain = (
+    RunnableParallel({
+        "text": lambda x: x["input"],
+        "embedding": embeddings | RunnableLambda(lambda e: e)
+    })
+    | RunnablePassthrough.assign(
+        summary=summary_prompt | chat_model | StrOutputParser()
+    )
+)
 
+# 异步批处理
+async def process_batch(items):
+    semaphore = asyncio.Semaphore(10)  # 限制并发数
+
+    async def process_single(item):
+        async with semaphore:
+            return await chat_model.ainvoke(item)
+
+    tasks = [process_single(item) for item in items]
+    return await asyncio.gather(*tasks)
+```
+
+### 3. 错误处理和监控
 ```python
 from langchain_core.callbacks import get_openai_callback
 
-def monitored_llm_call(prompt):
+async def monitored_call(prompt):
     with get_openai_callback() as cb:
-        result = llm.invoke(prompt)
-        print(f"Total Cost: ${cb.total_cost}")
-        print(f"Total Tokens: {cb.total_tokens}")
-        return result
+        try:
+            result = await chat_model.ainvoke(prompt)
+            print(f"Cost: ${cb.total_cost:.6f}")
+            return result
+        except Exception as e:
+            print(f"Error: {e}")
+            raise
 ```
 
-## 📊 性能对比
+## 📊 性能对比 (LangChain 1.x)
 
-| 模型类型 | 响应时间 | 成本 | 准确性 | 适用场景 |
-|---------|---------|------|--------|----------|
-| GPT-4 | 慢 | 高 | 很高 | 复杂推理、创作 |
-| GPT-3.5-Turbo | 快 | 中 | 高 | 对话、通用任务 |
-| Claude | 中 | 中 | 高 | 长文本处理 |
-| LLaMA | 中-快 | 低-中 | 中-高 | 本地部署 |
+| 特性 | LangChain 0.x | LangChain 1.x |
+|------|---------------|---------------|
+| 异步支持 | 有限 | 原生支持 |
+| 结构化输出 | 需要手动解析 | 原生支持 |
+| LCEL集成 | 部分支持 | 完全支持 |
+| 错误处理 | 基础 | 增强 |
+| 类型安全 | 基础 | 完善 |
+| 流式输出 | 支持 | 改进 |
 
 ## 🔗 相关资源
 
-- [LangChain Models官方文档](https://python.langchain.com/docs/modules/model_io/models/)
-- [OpenAI API文档](https://platform.openai.com/docs/api-reference)
-- [HuggingFace模型中心](https://huggingface.co/models)
+- [LangChain Models 官方文档](https://python.langchain.com/docs/modules/model_io/models/)
+- [LangChain 1.x 迁移指南](https://python.langchain.com/docs/versions/migrating_to_lcel/)
+- [OpenAI API 文档](https://platform.openai.com/docs/api-reference)
+- [LangChain Expression Language 指南](https://python.langchain.com/docs/concepts/lcel/)
 
 ---
 
-💡 **学习建议**：建议从基础的LLM开始学习，然后逐步掌握Chat Model和Embeddings，最后尝试自定义模型实现。
+💡 **学习建议**：建议从基础的模型使用开始学习，然后掌握异步和LCEL的高级特性，最后尝试自定义模型实现。在 LangChain 1.x 中，异步处理和LCEL是关键技能。

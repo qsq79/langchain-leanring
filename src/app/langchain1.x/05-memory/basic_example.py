@@ -9,16 +9,20 @@ import os
 import sys
 from typing import Dict, List, Any
 from langchain_openai import OpenAI, ChatOpenAI
-from langchain.memory import (
+from langchain_core.prompts import PromptTemplate
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
+
+# Memory components in LangChain 1.x (langchain_classic package)
+from langchain_classic.memory import (
     ConversationBufferMemory,
     ConversationBufferWindowMemory,
     ConversationSummaryMemory,
     ConversationKGMemory
 )
-from langchain.prompts import PromptTemplate
-from langchain.chains import LLMChain, ConversationChain
-from langchain.schema import BaseMessage, HumanMessage, AIMessage
-from langchain_community.llms import OpenAI as CommunityOpenAI
+from langchain_community.memory.kg import ConversationKGMemory as CommunityConversationKGMemory
+
+# Chain components
+from langchain_classic.chains import LLMChain, ConversationChain
 
 # 使用绝对导入配置加载器
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..'))
@@ -264,7 +268,7 @@ def memory_with_chat_model_example():
     memory = ConversationBufferMemory(return_messages=True)
     
     # 创建Chat Prompt模板
-    from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
+    from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
     
     prompt = ChatPromptTemplate.from_messages([
         ("system", "你是一个专业的AI助手，能够记住对话历史并提供连贯的回答。"),

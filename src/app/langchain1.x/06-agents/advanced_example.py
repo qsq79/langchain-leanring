@@ -14,8 +14,8 @@ from abc import ABC, abstractmethod
 from pydantic import BaseModel, Field
 from langchain_openai import ChatOpenAI, OpenAI
 from langchain.agents import AgentExecutor, create_react_agent
-from langchain.tools import BaseTool
-from langchain.prompts import PromptTemplate
+from langchain_community.tools import BaseTool
+from langchain_core.prompts import PromptTemplate
 from langchain_core.agents import AgentAction, AgentFinish
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
@@ -518,7 +518,7 @@ def agent_with_callbacks_example():
     
     # 使用LangChain的AgentExecutor来演示回调
     from langchain.agents import create_react_agent
-    from langchain.prompts import PromptTemplate
+    from langchain_core.prompts import PromptTemplate
     
     llm = OpenAI(temperature=0)
     prompt = PromptTemplate.from_template("""
