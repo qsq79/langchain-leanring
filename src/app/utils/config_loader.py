@@ -51,11 +51,14 @@ def _load_env_manually(env_file: str) -> None:
                 key = key.strip()
                 value = value.strip()
                 
-                # 移除引号
-                if value.startswith('"') and value.endswith('"'):
+                # 移除各种引号（包括中文引号）
+                if (value.startswith('"') and value.endswith('"')) or \
+                   (value.startswith("'") and value.endswith("'")) or \
+                   (value.startswith('"') and value.endswith('"')):  # 中文引号
                     value = value[1:-1]
-                elif value.startswith("'") and value.endswith("'"):
-                    value = value[1:-1]
+                
+                # 清理可能的额外空格
+                value = value.strip()
                 
                 os.environ[key] = value
 
@@ -98,9 +101,64 @@ def setup_openai_config() -> None:
     设置OpenAI配置，从环境变量中读取API密钥和基础URL
     """
     try:
-        # 获取API密钥
+        # 直接读取.env文件并解析，确保正确处理引号
+        env_file = "src/.env"
+        if not os.path.exists(env_file):
+            # 尝试其他路径
+            alternative_paths = [
+                ".env",
+                os.path.join(os.path.dirname(__file__), "..", "..", ".env")
+            ]
+            for alt_path in alternative_paths:
+                if os.path.exists(alt_path):
+                    env_file = alt_path
+                    break
+        
+        if os.path.exists(env_file):
+            print(f"直接读取 {env_file} 文件...")
+            
+            # 手动解析.env文件，确保正确处理引号
+            with open(env_file, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith('#'):
+                        continue
+                        
+                    if '=' in line:
+                        key, value = line.split('=', 1)
+                        key = key.strip()
+                        value = value.strip()
+                        
+                        # 移除各种引号（包括中文引号）
+                        if (value.startswith('"') and value.endswith('"')) or \
+                           (value.startswith("'") and value.endswith("'")) or \
+                           (value.startswith('"') and value.endswith('"')):  # 中文引号
+                            value = value[1:-1]
+                        
+                        # 清理可能的额外空格
+                        value = value.strip()
+                        
+                        # 设置环境变量
+                        os.environ[key] = value
+                        
+                        # 输出调试信息（对于API密钥只显示部分内容）
+                        if key == "OPENAI_API_KEY":
+                            print(f"已设置 {key}: {value[:10]}...{value[-4:] if len(value) > 4 else ''} (长度: {len(value)})")
+                        else:
+                            print(f"已设置 {key}: {value}")
+        else:
+            print(f"未找到环境变量文件: {env_file}")
+            
+            # 尝试使用dotenv作为后备
+            try:
+                from dotenv import load_dotenv
+                load_dotenv()
+                print("使用python-dotenv加载环境变量")
+            except ImportError:
+                print("未安装python-dotenv，无法加载环境变量")
+        
+        # 验证必需的环境变量
         api_key = get_required_env("OPENAI_API_KEY")
-        os.environ["OPENAI_API_KEY"] = api_key
         
         # 获取可选的基础URL
         api_base = get_optional_env("OPENAI_API_BASE")

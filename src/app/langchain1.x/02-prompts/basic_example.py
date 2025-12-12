@@ -15,9 +15,13 @@ from langchain_core.prompts import PipelinePromptTemplate
 from langchain_openai import OpenAIEmbeddings
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
-# 添加utils目录到系统路径，以便导入配置加载器
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from utils.config_loader import setup_openai_config
+# 添加项目根目录到系统路径
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..'))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+# 导入配置加载器
+from src.app.utils.config_loader import setup_openai_config
 
 # 从环境变量加载API配置
 setup_openai_config()

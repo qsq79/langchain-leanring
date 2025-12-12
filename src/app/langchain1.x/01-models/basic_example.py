@@ -7,6 +7,31 @@ LangChain Models 组件基础示例
 
 import os
 import sys
+import httpx._models
+
+# 修复编码问题
+os.environ['PYTHONIOENCODING'] = 'utf-8'
+os.environ['LC_ALL'] = 'en_US.UTF-8'
+os.environ['LANG'] = 'en_US.UTF-8'
+
+# 修复httpx编码问题
+original_normalize = httpx._models._normalize_header_value
+
+def patched_normalize_header_value(value, encoding=None):
+    """修复的头部值标准化函数，强制使用UTF-8"""
+    if isinstance(value, str):
+        try:
+            value.encode('ascii')
+            return original_normalize(value, encoding)
+        except UnicodeEncodeError:
+            return value.encode('utf-8')
+    else:
+        return original_normalize(value, encoding)
+
+httpx._models._normalize_header_value = patched_normalize_header_value
+
+import os
+import sys
 from typing import List
 from langchain_openai import OpenAI, ChatOpenAI
 from langchain_openai import OpenAIEmbeddings
@@ -14,9 +39,13 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.callbacks import StreamingStdOutCallbackHandler
 import numpy as np
 
-# 添加utils目录到系统路径，以便导入配置加载器
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from utils.config_loader import setup_openai_config
+# 添加项目根目录到系统路径
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..'))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+# 导入配置加载器
+from src.app.utils.config_loader import setup_openai_config
 
 # 从环境变量加载API配置
 setup_openai_config()
@@ -25,61 +54,137 @@ def llm_basic_example():
     """LLM基础使用示例"""
     print("=== LLM基础示例 ===")
     
-    # 创建LLM实例
-    llm = OpenAI(
-        model="gpt-3.5-turbo-instruct",
-        temperature=0.7,
-        max_tokens=100
-    )
+    # 注意：由于API限制，gpt-3.5-turbo-instruct可能不可用
+    # 我们将使用ChatOpenAI作为替代
     
-    # 简单文本生成
-    prompt = "请用中文写一首关于春天的诗，要求4行，每行7个字。"
-    response = llm.invoke(prompt)
-    print(f"输入: {prompt}")
-    print(f"输出: {response}")
-    print()
+    # 调试：检查当前环境变量
+    print(f"调试: OPENAI_API_KEY = {os.getenv('OPENAI_API_KEY', '未设置')}")
+    print(f"调试: OPENAI_API_BASE = {os.getenv('OPENAI_API_BASE', '未设置')}")
+    
+    try:
+        # 尝试使用原始的LLM
+        llm = OpenAI(
+            model="gpt-3.5-turbo-instruct",
+            temperature=0.7,
+            max_tokens=100
+        )
+        
+        # 简单文本生成
+        prompt = "请用中文写一首关于春天的诗，要求4行，每行7个字。"
+        response = llm.invoke(prompt)
+        print(f"输入: {prompt}")
+        print(f"输出: {response}")
+        print()
+    except Exception as e:
+        print(f"LLM调用失败: {e}")
+        print("尝试使用ChatOpenAI作为替代...")
+        
+        # 使用ChatOpenAI作为替代
+        print(f"创建ChatOpenAI实例，使用API Key: {os.getenv('OPENAI_API_KEY', '未设置')}")
+        chat_model = ChatOpenAI(
+            model="gpt-3.5-turbo",
+            temperature=0.7,
+            max_tokens=100
+        )
+        
+        from langchain_core.messages import HumanMessage
+        message = HumanMessage(content="请用中文写一首关于春天的诗，要求4行，每行7个字。")
+        response = chat_model.invoke([message])
+        print(f"输入: 请用中文写一首关于春天的诗，要求4行，每行7个字。")
+        print(f"输出: {response.content}")
+        print()
 
 def llm_streaming_example():
     """LLM流式输出示例"""
     print("=== LLM流式输出示例 ===")
     
-    # 创建支持流式输出的LLM
-    llm = OpenAI(
-        model="gpt-3.5-turbo-instruct",
-        streaming=True,
-        callbacks=[StreamingStdOutCallbackHandler()],
-        temperature=0.7
-    )
-    
-    prompt = "请解释什么是人工智能，包括其主要特点和应用领域。"
-    print(f"输入: {prompt}")
-    print("流式输出: ")
-    
-    # 流式生成
-    for chunk in llm.stream(prompt):
-        print(chunk.content, end="", flush=True)
-    print("\n")
+    # 注意：由于API限制，gpt-3.5-turbo-instruct可能不可用
+    # 我们将使用ChatOpenAI作为替代
+    try:
+        # 尝试使用原始的LLM
+        llm = OpenAI(
+            model="gpt-3.5-turbo-instruct",
+            streaming=True,
+            callbacks=[StreamingStdOutCallbackHandler()],
+            temperature=0.7
+        )
+        
+        prompt = "请解释什么是人工智能，包括其主要特点和应用领域。"
+        print(f"输入: {prompt}")
+        print("流式输出: ")
+        
+        # 流式生成
+        for chunk in llm.stream(prompt):
+            print(chunk.content, end="", flush=True)
+        print("\n")
+    except Exception as e:
+        print(f"LLM流式输出失败: {e}")
+        print("尝试使用ChatOpenAI作为替代...")
+        
+        # 使用ChatOpenAI作为替代（不支持流式回调，但可以基本流式输出）
+        
+        chat_model = ChatOpenAI(
+            model="gpt-3.5-turbo",
+            temperature=0.7,
+            max_tokens=200
+        )
+        
+        from langchain_core.messages import HumanMessage
+        message = HumanMessage(content="请简单解释什么是人工智能，包括其主要特点。")
+        print(f"输入: 请简单解释什么是人工智能，包括其主要特点。")
+        print("输出: ")
+        
+        # 生成响应
+        response = chat_model.invoke([message])
+        print("\n")
 
 def llm_batch_example():
     """LLM批量处理示例"""
     print("=== LLM批量处理示例 ===")
     
-    llm = OpenAI(model="gpt-3.5-turbo-instruct", temperature=0.3)
-    
-    # 批量提示
-    prompts = [
-        "什么是机器学习？",
-        "什么是深度学习？",
-        "什么是神经网络？"
-    ]
-    
-    # 批量生成
-    results = llm.generate(prompts)
-    
-    for i, (prompt, generation) in enumerate(zip(prompts, results.generations)):
-        print(f"问题{i+1}: {prompt}")
-        print(f"答案{i+1}: {generation[0].text.strip()}")
-        print()
+    # 注意：由于API限制，gpt-3.5-turbo-instruct可能不可用
+    # 我们将使用ChatOpenAI作为替代
+    try:
+        # 尝试使用原始的LLM
+        llm = OpenAI(model="gpt-3.5-turbo-instruct", temperature=0.3)
+        
+        # 批量提示
+        prompts = [
+            "什么是机器学习？",
+            "什么是深度学习？",
+            "什么是神经网络？"
+        ]
+        
+        # 批量生成
+        results = llm.generate(prompts)
+        
+        for i, (prompt, generation) in enumerate(zip(prompts, results.generations)):
+            print(f"问题{i+1}: {prompt}")
+            print(f"答案{i+1}: {generation[0].text.strip()}")
+            print()
+    except Exception as e:
+        print(f"LLM批量处理失败: {e}")
+        print("尝试使用ChatOpenAI作为替代...")
+        
+        # 使用ChatOpenAI作为替代（不支持批量处理，逐个处理）
+        chat_model = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.3)
+        
+        # 批量提示
+        prompts = [
+            "什么是机器学习？",
+            "什么是深度学习？",
+            "什么是神经网络？"
+        ]
+        
+        from langchain_core.messages import HumanMessage
+        
+        # 逐个生成
+        for i, prompt in enumerate(prompts):
+            message = HumanMessage(content=prompt)
+            response = chat_model.invoke([message])
+            print(f"问题{i+1}: {prompt}")
+            print(f"答案{i+1}: {response.content.strip()}")
+            print()
 
 def chat_model_basic_example():
     """Chat Model基础使用示例"""
@@ -135,8 +240,17 @@ def embeddings_basic_example():
     """Embeddings基础使用示例"""
     print("=== Embeddings基础示例 ===")
     
-    # 创建Embeddings实例
-    embeddings = OpenAIEmbeddings(model="text-embedding-ada-002")
+    # 创建Embeddings实例 - 使用可能可用的模型
+    try:
+        embeddings = OpenAIEmbeddings(model="text-embedding-ada-002")
+    except Exception as e:
+        print(f"使用text-embedding-ada-002失败: {e}")
+        try:
+            embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
+        except Exception as e2:
+            print(f"使用text-embedding-3-small失败: {e2}")
+            print("跳过Embeddings示例")
+            return
     
     # 示例文本
     texts = [

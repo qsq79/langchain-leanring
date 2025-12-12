@@ -23,9 +23,11 @@ from langchain_community.tools import WikipediaQueryRun
 from langchain_community.utilities import WikipediaAPIWrapper
 from langchain import hub
 
-# 添加utils目录到系统路径，以便导入配置加载器
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from utils.config_loader import setup_all_configs
+# 使用绝对导入配置加载器
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..'))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+from src.app.utils.config_loader import setup_all_configs
 
 # 从环境变量加载所有API配置
 setup_all_configs()

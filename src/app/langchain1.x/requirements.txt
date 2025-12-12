@@ -1,0 +1,49 @@
+# LangChain核心依赖 (所有模块共用)
+langchain>=0.1.0
+langchain-openai>=0.1.0
+langchain-community>=0.1.0
+
+# 数值计算和科学计算
+numpy>=1.24.0
+scikit-learn>=1.3.0
+
+# HTTP请求和异步支持
+requests>=2.28.0
+aiohttp>=3.8.0
+aiofiles>=23.0.0
+
+# 数据处理
+pandas>=2.0.0
+pydantic>=2.0.0
+
+# 向量数据库和搜索
+faiss-cpu>=1.7.0
+chromadb>=0.4.0
+
+# 数据存储
+pymongo>=4.0.0
+redis>=4.0.0
+
+# 网页解析
+beautifulsoup4>=4.12.0
+
+# 缓存支持
+gptcache>=0.1.0
+
+# 异步支持
+asyncio
+
+# 环境变量管理
+python-dotenv>=1.0.0
+
+# 开发和测试工具（可选）
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+# 其他 - 进度条显示工具
+tqdm>=4.64.0
+
+
+# 以下为各模块新增依赖，请在此处追加
+# 格式: # [模块名称] - [依赖说明]
+# 示例: # 09-rag - 新增的向量数据库支持
+# pinecone-client>=2.2.0
