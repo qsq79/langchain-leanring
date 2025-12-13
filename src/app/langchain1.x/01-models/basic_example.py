@@ -389,7 +389,19 @@ def main():
         llm_streaming_example()
         llm_batch_example()
 
-       
+        # Chat Model示例
+        chat_model_basic_example()
+        chat_model_multi_turn_example()
+        chat_model_structured_output_example()
+
+
+        # 异步Chat Model示例
+        asyncio.run(chat_model_async_example())
+
+        # Embeddings示例
+        embeddings_basic_example()
+        embeddings_async_example()
+
     except Exception as e:
         print(f"运行示例时出错: {e}")
         print("请确保已正确设置OPENAI_API_KEY环境变量")
