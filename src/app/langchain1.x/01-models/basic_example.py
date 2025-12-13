@@ -37,8 +37,9 @@ def llm_basic_example():
 
     try:
         # 在 LangChain 1.x 中，OpenAI 类仍然可用但可能受到 API 限制
+        # 注意：某些API代理可能不支持Legacy Completions API，只支持Chat Completions
         llm = OpenAI(
-            model="gpt-3.5-turbo-instruct",
+            model="gpt-3.5-turbo-instruct",  # 使用支持的模型
             temperature=0.7,
             max_tokens=100
         )
@@ -71,7 +72,7 @@ def llm_streaming_example():
     print("=== LLM流式输出示例 ===")
 
     try:
-        # 使用流式LLM
+        # 使用流式LLM (注意：某些API代理可能不支持Legacy Completions的流式输出)
         llm = OpenAI(
             model="gpt-3.5-turbo-instruct",
             streaming=True,
@@ -388,18 +389,7 @@ def main():
         llm_streaming_example()
         llm_batch_example()
 
-        # Chat Model示例
-        chat_model_basic_example()
-        chat_model_multi_turn_example()
-        chat_model_structured_output_example()
-
-        # 异步Chat Model示例
-        asyncio.run(chat_model_async_example())
-
-        # Embeddings示例
-        embeddings_basic_example()
-        embeddings_async_example()
-
+       
     except Exception as e:
         print(f"运行示例时出错: {e}")
         print("请确保已正确设置OPENAI_API_KEY环境变量")
