@@ -46,9 +46,10 @@ result = await llm.ainvoke("Hello, world!")
 - 结构化输出支持
 - 更好的异步流式输出
 - 与 LCEL 完全兼容
+- **统一模型初始化** (`init_chat_model`)
 
 ```python
-# LangChain 1.x 推荐写法
+# 方法1: 传统方式 (仍然支持)
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
@@ -62,6 +63,31 @@ chain = prompt | chat_model | StrOutputParser()
 
 # 执行
 result = chain.invoke({"question": "什么是AI？"})
+```
+
+#### init_chat_model - LangChain 1.x 推荐方式
+
+```python
+# 方法2: init_chat_model (推荐)
+from langchain.chat_models import init_chat_model
+
+# 最简单的初始化 - 自动从环境变量读取配置
+model = init_chat_model("gpt-4")
+
+# 带参数的初始化
+model = init_chat_model(
+    "gpt-3.5-turbo",
+    temperature=0.7,
+    max_tokens=100
+)
+
+# 支持多种模型提供商
+openai_model = init_chat_model("gpt-4")           # OpenAI
+anthropic_model = init_chat_model("claude-3")     # Anthropic (需要 langchain-anthropic)
+google_model = init_chat_model("gemini-pro")      # Google (需要 langchain-google-genai)
+
+# 完全相同的调用方式
+response = model.invoke([HumanMessage(content="你好！")])
 ```
 
 #### 结构化输出 (新特性)
@@ -399,6 +425,27 @@ async def monitored_call(prompt):
 - [OpenAI API 文档](https://platform.openai.com/docs/api-reference)
 - [LangChain Expression Language 指南](https://python.langchain.com/docs/concepts/lcel/)
 
+## 📁 示例文件
+
+- [`basic_example.py`](basic_example.py) - 完整的基础示例，包含LLM、Chat Models和Embeddings
+- [`advanced_example.py`](advanced_example.py) - 高级特性示例
+- [`init_chat_model_example.py`](init_chat_model_example.py) - **新增** - init_chat_model统一初始化方式示例
+
+### init_chat_model 示例文件特性
+
+该示例展示了 LangChain 1.x 中推荐的模型初始化方式：
+
+- **基础使用** - 最简单的模型初始化
+- **多提供商支持** - OpenAI、Anthropic、Google等
+- **参数配置** - temperature、max_tokens等
+- **流式输出** - 实时响应流
+- **异步调用** - 并发处理示例
+- **多轮对话** - 对话历史管理
+- **批量处理** - 高效批量调用
+- **结构化输出** - JSON格式输出
+- **错误处理** - 异常处理最佳实践
+- **性能对比** - 不同模型性能对比
+
 ---
 
-💡 **学习建议**：建议从基础的模型使用开始学习，然后掌握异步和LCEL的高级特性，最后尝试自定义模型实现。在 LangChain 1.x 中，异步处理和LCEL是关键技能。
+💡 **学习建议**：建议从基础的模型使用开始学习，然后掌握异步和LCEL的高级特性，最后尝试自定义模型实现。在 LangChain 1.x 中，**异步处理**、**LCEL**和**init_chat_model**是关键技能。
