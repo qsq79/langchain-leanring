@@ -14,6 +14,8 @@ from langchain_core.messages import SystemMessage
 from langchain_community.tools import Tool
 from langchain_community.tools import WikipediaQueryRun
 from langchain_community.utilities import WikipediaAPIWrapper
+from langchain.agents import create_react_agent, AgentExecutor
+from langchain_core.prompts import PromptTemplate
 
 # Agent components in LangChain 1.x
 from langchain_classic.agents import (

@@ -1,18 +1,24 @@
-# LangChain 1.x 核心组件学习项目
+# LangChain 1.x 核心组件学习项目 (2025更新版)
 
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://python.org)
-[![LangChain 1.x](https://img.shields.io/badge/langchain-1.x-orange.svg)](https://python.langchain.com/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://python.org)
+[![LangChain 1.0](https://img.shields.io/badge/langchain-1.0+-orange.svg)](https://python.langchain.com/)
+[![LangGraph](https://img.shields.io/badge/langgraph-1.0+-green.svg)](https://python.langchain.com/)
 
 一个全面的 LangChain 1.x 学习项目，包含所有核心组件的详细示例和最佳实践。
+**更新日期：2025年 | 支持 LangChain 1.0+ 和 LangGraph 1.0+**
 
 ## 📚 项目概述
 
 本项目提供了 LangChain 1.x 框架的完整学习路径，从基础概念到高级应用，涵盖了所有主要组件的使用方法。
 
+> **重要更新（2025年10月）**：LangChain 1.0 发布了重大架构更新，所有chains和agents已被重构为基于LangGraph的统一抽象。本项目已更新以支持这些变化。
+
 ### 🎯 学习目标
-- 掌握 LangChain 1.x 的核心组件
+- 掌握 LangChain 1.x 的核心组件和新API
 - 理解 LangChain Expression Language (LCEL)
-- 学会构建基于大语言模型的实际应用
+- 学习使用 LangGraph 构建状态ful agents
+- 掌握 `create_agent()` 新API
+- 学会使用 `with_structured_output()` 和 Pydantic v2
 - 了解异步处理和性能优化技巧
 
 ## 🏗️ 项目结构
@@ -31,57 +37,83 @@ langchain1.x/
 └── README.md          # 项目说明
 ```
 
-## 🚀 LangChain 1.x 新特性
+## 🚀 LangChain 1.0 新特性（2025更新）
 
-### 1. LangChain Expression Language (LCEL)
-使用 pipe operator (`|`) 构建强大的链式组件：
+### 1. 统一的Agent抽象 (`create_agent`)
+新的标准方式构建agents，替代旧的chains：
+
+```python
+from langchain.agents import create_agent
+from langchain_openai import ChatOpenAI
+from pydantic import BaseModel
+
+class ResponseFormat(BaseModel):
+    summary: str
+    sentiment: str
+
+# 使用新的create_agent API
+agent = create_agent(
+    model="gpt-4o-mini",
+    tools=[tool1, tool2],
+    response_format=ResponseFormat  # 结构化输出
+)
+
+result = agent.invoke({"messages": [("user", "Analyze this text")]})
+```
+
+### 2. LangGraph原生集成
+所有agents现在基于LangGraph构建：
+
+```python
+from langgraph.graph import StateGraph, MessagesState
+from langchain.chat_models import init_chat_model
+
+model = init_chat_model("gpt-4o-mini")
+
+# 使用StateGraph构建自定义agent
+workflow = StateGraph(MessagesState)
+workflow.add_node("agent", agent_node)
+workflow.add_edge("__start__", "agent")
+app = workflow.compile()
+```
+
+### 3. 改进的结构化输出（Pydantic v2支持）
+`with_structured_output()` 现在支持更多策略：
+
+```python
+from pydantic import BaseModel, Field
+
+class MovieDetails(BaseModel):
+    title: str
+    year: int
+    rating: float
+
+# 使用ProviderStrategy（原生结构化输出）
+structured_model = model.with_structured_output(MovieDetails)
+
+result = structured_model.invoke("Tell me about Inception")
+# 返回验证后的Pydantic对象
+```
+
+### 4. Model Profiles
+聊天模型现在暴露其功能：
+
+```python
+model = ChatOpenAI(model="gpt-4o")
+print(model.profile)
+# 显示模型支持的功能（流式、工具调用、结构化输出等）
+```
+
+### 5. LCEL仍然适用
+对于简单任务，LCEL仍然推荐使用：
 
 ```python
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import StrOutputParser
 
-prompt = ChatPromptTemplate.from_template("Tell me a joke about {topic}")
-llm = ChatOpenAI()
-output_parser = StrOutputParser()
-
-chain = prompt | llm | output_parser
-result = chain.invoke({"topic": "programming"})
-```
-
-### 2. 原生异步支持
-所有组件都支持异步操作，提高性能：
-
-```python
-import asyncio
-
-async def process_multiple():
-    tasks = [chain.ainvoke({"topic": topic}) for topic in topics]
-    results = await asyncio.gather(*tasks)
-    return results
-```
-
-### 3. 流式输出增强
-更好的流式处理能力：
-
-```python
-for chunk in chain.stream({"topic": "AI"}):
-    print(chunk, end="", flush=True)
-
-# 异步流式
-async for chunk in chain.astream({"topic": "AI"}):
-    print(chunk, end="", flush=True)
-```
-
-### 4. 改进的类型安全
-更好的类型提示和验证：
-
-```python
-from typing import Dict, Any
-from langchain_core.runnables import Runnable
-
-def create_chain() -> Runnable[Dict[str, Any], str]:
-    return prompt | llm | output_parser
+chain = ChatPromptTemplate.from_template("Tell me about {topic}") | ChatOpenAI() | StrOutputParser()
+result = chain.invoke({"topic": "AI"})
 ```
 
 ## 📖 学习路径
@@ -95,10 +127,12 @@ def create_chain() -> Runnable[Dict[str, Any], str]:
 4. **[Indexes](04-indexes/)** - 学习文档处理和向量存储
 5. **[Memory](05-memory/)** - 掌握对话记忆机制
 
-### 第三阶段：智能应用
-6. **[Agents](06-agents/)** - 构建智能代理系统
+### 第三阶段：智能应用（重要更新）
+6. **[Agents](06-agents/)** - 使用 `create_agent()` 和 LangGraph 构建agents
 7. **[Tools](07-tools/)** - 集成外部工具和 API
 8. **[Callbacks](08-callbacks/)** - 实现监控和回调机制
+
+> **⚠️ 重要提示**：传统的 `LLMChain`, `SequentialChain`, `RouterChain` 等已在 v1.0 中移除。请使用 LCEL 或 `create_agent()`。
 
 ## 🛠️ 环境配置
 
@@ -154,41 +188,73 @@ python 01-models/advanced_example.py
 - **Text Splitters**: 文本分割器
 - **Vector Stores**: 向量数据库
 
-## 🏆 最佳实践
+## 🏆 最佳实践（2025更新）
 
-### 1. 使用 LCEL 构建链
+### 1. 使用 `create_agent()` 而非旧的Chains
 ```python
-# ✅ 推荐
-chain = prompt | llm | output_parser
+# ✅ 推荐 (LangChain 1.0+)
+from langchain.agents import create_agent
 
-# ❌ 不推荐
+agent = create_agent(
+    model="gpt-4o-mini",
+    tools=tools,
+    response_format=OutputSchema
+)
+
+# ❌ 已移除
 from langchain.chains import LLMChain
 chain = LLMChain(llm=llm, prompt=prompt)
 ```
 
-### 2. 异步处理
+### 2. LCEL用于简单任务
+```python
+# ✅ 推荐 - 用于简单的prompt-model-parser链
+chain = prompt | llm | output_parser
+result = chain.invoke({"input": "Hello"})
+
+# 对于复杂逻辑，使用LangGraph
+```
+
+### 3. 异步处理
 ```python
 # ✅ 推荐
 async def process_batch():
-    tasks = [chain.ainvoke(item) for item in items]
+    tasks = [agent.ainvoke({"messages": [("user", item)]}) for item in items]
     return await asyncio.gather(*tasks)
 ```
 
-### 3. 错误处理
+### 4. 结构化输出
+```python
+# ✅ 推荐 - 使用Pydantic v2
+from pydantic import BaseModel, Field
+
+class Output(BaseModel):
+    summary: str = Field(description="摘要")
+    score: float = Field(description="评分", ge=0, le=10)
+
+structured_model = model.with_structured_output(Output)
+result = structured_model.invoke("Analyze this...")
+```
+
+### 5. 流式处理
+```python
+# ✅ 推荐 - Agent支持流式输出
+for chunk in agent.stream({"messages": [("user", "Hello")]}):
+    print(chunk)
+
+# 异步流式
+async for chunk in agent.astream({"messages": [("user", "Hello")]}):
+    print(chunk)
+```
+
+### 6. 错误处理
 ```python
 from langchain_core.exceptions import LangChainException
 
 try:
-    result = await chain.ainvoke(input_data)
+    result = await agent.ainvoke({"messages": messages})
 except LangChainException as e:
-    logger.error(f"Chain execution failed: {e}")
-```
-
-### 4. 流式处理
-```python
-# 实时输出
-for chunk in chain.stream(input_data):
-    print(chunk, end="", flush=True)
+    logger.error(f"Agent execution failed: {e}")
 ```
 
 ## 🔧 开发工具
@@ -211,23 +277,28 @@ python -m py_compile your_file.py
 mypy your_file.py
 ```
 
-## 📊 性能对比
+## 📊 版本对比
 
-| 特性 | LangChain 0.x | LangChain 1.x |
-|------|---------------|---------------|
-| 链式组合 | 基于类 | LCEL (pipe operator) |
-| 异步支持 | 有限 | 原生支持 |
-| 类型安全 | 基础 | 完善 |
-| 性能 | 中等 | 优化 |
-| 可维护性 | 中等 | 优秀 |
-| 学习曲线 | 陡峭 | 平缓 |
+| 特性 | LangChain 0.x | LangChain 1.0+ (2025) |
+|------|---------------|---------------------|
+| Agent构建 | LLMChain, SequentialChain | `create_agent()` + LangGraph |
+| 异步支持 | 有限 | 原生支持所有组件 |
+| 类型安全 | 基础 (Pydantic v1) | 完善 (Pydantic v2) |
+| 结构化输出 | 输出解析器 | `with_structured_output()` |
+| 流式处理 | 基础 | 增强流式 + 自动流式 |
+| 状态管理 | Memory组件 | LangGraph StateGraph |
+| 性能 | 中等 | 优化 (并发、批处理) |
+| 可维护性 | 中等 | 优秀 (统一抽象) |
+| 学习曲线 | 陡峭 | 平缓 (简化API) |
 
 ## 🔗 相关资源
 
 ### 官方文档
 - [LangChain 官方文档](https://python.langchain.com/)
 - [LCEL 指南](https://python.langchain.com/docs/concepts/lcel/)
-- [迁移指南](./LANGCHAIN_1X_MIGRATION_GUIDE.md)
+- [LangGraph 文档](https://python.langchain.com/docs/langgraph/)
+- [LangChain 1.0 迁移指南](./LANGCHAIN_1X_MIGRATION_GUIDE.md)
+- [LangGraph 1.0 迁移指南](https://python.langchain.com/docs/versions/migrating_agents/)
 
 ### 社区资源
 - [LangChain Discord](https://discord.gg/langchain)
