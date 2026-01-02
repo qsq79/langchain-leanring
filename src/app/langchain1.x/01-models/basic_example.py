@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-LangChain Models 组件基础示例 (LangChain 1.x 版本)
+LangChain Models 组件基础示例 (LangChain 1.0+ 版本)
 演示LLM、Chat Models和Embeddings的基本使用方法
 
-在 LangChain 1.x 中：
-- 从 langchain 导入的部分组件已移至 langchain_core
-- 部分导入路径发生变化
-- 推荐使用新的流式API和异步API
+在 LangChain 1.0+ 中：
+- 推荐使用 ChatOpenAI 而非 OpenAI（Legacy Completions API）
+- 使用 with_structured_output() 进行结构化输出
+- 所有组件支持原生异步操作
+- 增强的流式处理能力
+- Pydantic v2 完全支持
 """
 
 import os
@@ -206,60 +208,42 @@ def chat_model_multi_turn_example():
     print(f"AI: {response2.content}\n")
 
 def chat_model_structured_output_example():
-    """Chat Model结构化输出示例 (LangChain 1.x 新特性)"""
+    """Chat Model结构化输出示例 (LangChain 1.0+ with_structured_output)"""
     print("=== Chat Model结构化输出示例 ===")
 
     try:
-        from langchain_core.output_parsers import JsonOutputParser
-        from langchain_core.pydantic_v1 import BaseModel, Field
+        from pydantic import BaseModel, Field
         from typing import List
 
-        # 定义输出结构
+        # 定义输出结构 (Pydantic v2)
         class ProgrammingConcept(BaseModel):
+            """编程概念的结构化输出"""
             name: str = Field(description="编程概念名称")
             description: str = Field(description="概念描述")
             key_features: List[str] = Field(description="关键特性列表")
             example: str = Field(description="简单示例")
 
-        # 创建解析器
-        parser = JsonOutputParser(pydantic_object=ProgrammingConcept)
-
         # 创建Chat Model
-        chat_model = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.3)
+        chat_model = ChatOpenAI(model="gpt-4o-mini", temperature=0.3)
 
-        # 构建包含格式指令的prompt
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", "你是一个编程专家，请用JSON格式回答问题。格式说明：{format_instructions}"),
-            ("human", "请详细解释Python中的生成器（generator）概念。")
-        ])
+        # 使用 with_structured_output() (LangChain 1.0+ 新方式)
+        structured_model = chat_model.with_structured_output(ProgrammingConcept)
 
-        # 创建链（使用 LCEL 风格）
-        chain = prompt | chat_model | parser
-
-        # 执行并获取结构化输出
-        result = chain.invoke({
-            "format_instructions": parser.get_format_instructions()
-        })
+        # 直接获取结构化输出
+        result = structured_model.invoke("请详细解释Python中的生成器（generator）概念，包括名称、描述、关键特性和简单示例。")
 
         print("编程概念分析:")
-        print(f"名称: {result['name']}")
-        print(f"描述: {result['description']}")
-        print(f"关键特性: {', '.join(result['key_features'])}")
-        print(f"示例: {result['example']}")
+        print(f"名称: {result.name}")
+        print(f"描述: {result.description}")
+        print(f"关键特性: {', '.join(result.key_features)}")
+        print(f"示例: {result.example}")
+        print(f"类型: {type(result)}")  # 验证返回的是Pydantic对象
         print()
 
     except Exception as e:
         print(f"结构化输出示例失败: {e}")
-        print("使用普通对话模式...")
-
-        # 回退到普通对话
-        chat_model = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.3)
-        messages = [
-            SystemMessage(content="你是一个编程专家。"),
-            HumanMessage(content="请详细解释Python中的生成器（generator）概念。")
-        ]
-        response = chat_model.invoke(messages)
-        print(f"AI回复: {response.content}")
+        import traceback
+        traceback.print_exc()
         print()
 
 async def chat_model_async_example():

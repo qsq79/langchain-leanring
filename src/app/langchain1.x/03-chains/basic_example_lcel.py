@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-LangChain Chains 组件基础示例 (LangChain 1.x / LCEL 版本)
-演示如何使用 LangChain Expression Language (LCEL) 替代传统的 Chain 组件
+LangChain Chains 组件基础示例 (LangChain 1.0+ 版本)
+演示如何使用 LangChain Expression Language (LCEL)
+
+在 LangChain 1.0+ 中：
+- LCEL (pipe operator |) 是构建简单链的推荐方式
+- 旧的 Chain 类（LLMChain, SequentialChain等）已移除
+- 对于复杂逻辑，推荐使用 LangGraph 的 StateGraph
+- 所有组件支持原生异步和流式处理
 """
 
 import os
@@ -28,17 +34,16 @@ def basic_lcel_chain_example():
     """基础 LCEL Chain 示例"""
     print("=== 基础 LCEL Chain 示例 ===")
 
-    # 创建LLM实例
-    llm = OpenAI(model="gpt-3.5-turbo-instruct", temperature=0.7)
+    # 创建Chat模型实例 (推荐使用ChatOpenAI)
+    chat_model = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
 
     # 创建Prompt模板
-    prompt = PromptTemplate(
-        template="请用中文回答以下问题：{question}",
-        input_variables=["question"]
+    prompt = PromptTemplate.from_template(
+        "请用中文回答以下问题：{question}"
     )
 
-    # 使用LCEL创建chain (替代传统的LLMChain)
-    chain = prompt | llm | StrOutputParser()
+    # 使用LCEL创建chain (推荐方式)
+    chain = prompt | chat_model | StrOutputParser()
 
     # 执行Chain
     question = "什么是人工智能？"
