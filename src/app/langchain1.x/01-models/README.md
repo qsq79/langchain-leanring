@@ -1,18 +1,22 @@
-# LangChain Models 组件学习指南 (LangChain 1.x 版本)
+# LangChain Models 组件学习指南 (LangChain 1.0+ 版本)
 
-Models是LangChain框架中最基础的组件，负责与各种语言模型进行交互。本指南将详细介绍Models组件在LangChain 1.x中的核心概念、使用方法和最佳实践。
+Models是LangChain框架中最基础的组件，负责与各种语言模型进行交互。本指南将详细介绍Models组件在LangChain 1.0+中的核心概念、使用方法和最佳实践。
 
-## 📋 LangChain 1.x 核心变化
+> **重要更新 (2025年10月)**: LangChain 1.0 发布，推荐使用 `ChatOpenAI` 而非 `OpenAI`（Legacy Completions API），并使用 `with_structured_output()` 进行结构化输出。
+
+## 📋 LangChain 1.0+ 核心变化
+
+### 主要API变化
+- **推荐ChatOpenAI**: 推荐使用 `ChatOpenAI` 替代传统 `OpenAI` (Legacy Completions API)
+- **Pydantic v2支持**: `with_structured_output()` 完全支持 Pydantic v2
+- **Model Profiles**: 模型暴露 `.profile` 属性显示功能特性
+- **统一初始化**: `init_chat_model()` 提供统一的模型初始化方式
+- **增强流式**: 自动流式检测和更好的流式API
 
 ### 导入路径变化
 - **从 langchain 到 langchain_core**: 基础接口和消息类已移至 `langchain_core`
-- **专门包**: 提供商特定的包如 `langchain_openai`, `langchain_community`
+- **专门包**: 提供商特定的包如 `langchain_openai`, `langchain_anthropic`
 - **模块化架构**: 核心功能与社区插件分离
-
-### 新特性
-- **异步支持**: 所有的模型都支持异步调用
-- **LCEL兼容**: 与LangChain Expression Language完全兼容
-- **改进的错误处理**: 更好的异常处理和重试机制
 
 ## 🎯 Models组件分类
 
@@ -90,18 +94,66 @@ google_model = init_chat_model("gemini-pro")      # Google (需要 langchain-goo
 response = model.invoke([HumanMessage(content="你好！")])
 ```
 
-#### 结构化输出 (新特性)
-```python
-from langchain_core.output_parsers import JsonOutputParser
-from langchain_core.pydantic_v1 import BaseModel, Field
+#### 结构化输出 (LangChain 1.0+ 推荐)
 
+**使用 with_structured_output()**:
+
+```python
+from pydantic import BaseModel, Field
+from typing import List
+
+# 定义输出结构 (Pydantic v2)
 class Answer(BaseModel):
+    """结构化回答"""
     summary: str = Field(description="回答摘要")
     details: List[str] = Field(description="详细要点")
 
-parser = JsonOutputParser(pydantic_object=Answer)
-chain = prompt | chat_model | parser
-result = chain.invoke({"question": "什么是机器学习？"})
+# 方式1: 直接获取结构化对象
+structured_model = chat_model.with_structured_output(Answer)
+result = structured_model.invoke("解释什么是机器学习")
+
+# result 是验证后的 Pydantic 对象
+print(result.summary)
+print(result.details)
+```
+
+**在Agent中使用结构化输出**:
+
+```python
+from langchain.agents import create_agent
+
+agent = create_agent(
+    model="gpt-4o-mini",
+    tools=[tool1, tool2],
+    response_format=Answer  # 结构化输出
+)
+
+result = agent.invoke({"messages": [("user", "问题")]})
+
+# 获取结构化响应
+if "structured_response" in result:
+    structured = result["structured_response"]
+    print(structured.summary)
+```
+
+**两种结构化输出策略**:
+
+```python
+from langchain.agents.structured_output import ToolStrategy, ProviderStrategy
+
+# ToolStrategy - 使用工具调用实现
+agent = create_agent(
+    model="gpt-4o-mini",
+    tools=tools,
+    response_format=ToolStrategy(Answer)
+)
+
+# ProviderStrategy - 使用模型原生结构化输出（如果支持）
+agent = create_agent(
+    model="gpt-4o-mini",  # 支持原生结构化输出的模型
+    tools=tools,
+    response_format=ProviderStrategy(Answer)
+)
 ```
 
 ### 3. Text Embedding Models
@@ -244,18 +296,19 @@ chain = (
 )
 ```
 
-## 🎯 常见面试题 (LangChain 1.x 版本)
+## 🎯 常见面试题 (LangChain 1.0+ 版本)
 
 ### 基础概念题
 
-**Q1: LangChain 1.x 中 Models 组件的主要变化是什么？**
+**Q1: LangChain 1.0+ 中 Models 组件的主要变化是什么？**
 
 **A1:**
-- **导入路径变化**: 从 `langchain` 移至 `langchain_core` 和专门包
-- **异步支持**: 所有模型都支持 `ainvoke()`, `astream()`, `abatch()` 等异步方法
-- **LCEL兼容**: 完全支持 LangChain Expression Language
-- **结构化输出**: Chat Models 支持原生结构化输出
-- **改进的错误处理**: 更好的异常处理和重试机制
+- **推荐ChatOpenAI**: 推荐使用 `ChatOpenAI` 替代 `OpenAI` (Legacy Completions API)
+- **Pydantic v2支持**: `with_structured_output()` 完全支持 Pydantic v2
+- **Model Profiles**: 模型通过 `.profile` 属性暴露功能特性
+- **增强异步**: 所有模型原生支持异步操作
+- **改进流式**: 自动流式检测和更好的流式API
+- **统一初始化**: `init_chat_model()` 提供统一初始化方式
 
 **Q2: 如何在 LangChain 1.x 中实现自定义LLM？**
 
