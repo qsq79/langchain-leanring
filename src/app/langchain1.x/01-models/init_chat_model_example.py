@@ -208,7 +208,7 @@ def structured_output_example():
 
     try:
         from langchain_core.output_parsers import JsonOutputParser
-        from langchain_core.pydantic_v1 import BaseModel, Field
+        from pydantic import BaseModel, Field
         from typing import List
 
         # 定义输出结构

@@ -1,14 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-LangChain Chains 组件基础示例 (LangChain 1.x / LCEL 版本)
-演示如何使用 LangChain Expression Language (LCEL) 替代传统的 Chain 组件
+LangChain Chains 组件基础示例 (LangChain 1.0+ 版本)
+演示 LCEL (LangChain Expression Language) 的使用场景和最佳实践
 
-在 LangChain 1.x 中：
-- 不再推荐使用 LLMChain、SequentialChain 等传统类
-- 推荐使用 LCEL 语法：prompt | llm | output_parser
-- 使用 pipe operator (|) 组合组件
-- 使用 RunnablePassthrough、RunnableParallel 等进行复杂流控制
+**重要说明**:
+- LCEL (pipe operator |) 是 LangChain 1.0+ 构建链的标准方式
+- 本文件展示 LCEL 的各种用法和模式
+- LCEL 适用于简单的 prompt → model → parser 流程
+- 对于需要使用工具的 Agent 应用,请参考 06-agents 目录
+
+**何时使用 LCEL**:
+- ✅ 简单的 prompt → model → parser 流程
+- ✅ 不需要使用工具(tools)
+- ✅ 快速原型和简单任务
+- ✅ 需要精细控制每个步骤
+
+**何时使用 Agent (06-agents)**:
+- ✅ 需要使用工具的智能体
+- ✅ 需要对话记忆和状态管理
+- ✅ 需要自主规划和执行能力
 """
 
 import os
@@ -466,16 +477,63 @@ def conditional_chain_example():
         print(f"回答: {result}")
         print("-" * 50)
 
+def compare_apis_example():
+    """对比不同 LCEL 模式的使用"""
+    print("=== LCEL 不同模式对比示例 ===")
+
+    # 方式1: 基础 LCEL 链
+    print("方式1: 基础 LCEL - prompt | model | parser")
+    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
+    prompt = ChatPromptTemplate.from_template(
+        "你是一个专业的问答助手。请简洁准确地回答问题。\n\n问题: {question}"
+    )
+    chain = prompt | llm | StrOutputParser()
+
+    response = chain.invoke({"question": "什么是人工智能?"})
+    print(f"基础 LCEL 回答: {response[:100]}...")
+
+    # 方式2: 带自定义处理的 LCEL
+    print("\n方式2: 带自定义函数的 LCEL")
+    def format_response(response):
+        return f"【回答】{response}"
+
+    enhanced_chain = prompt | llm | StrOutputParser() | format_response
+    response = enhanced_chain.invoke({"question": "什么是深度学习?"})
+    print(f"增强 LCEL 回答: {response[:100]}...")
+
+    # 方式3: 并行处理
+    print("\n方式3: 并行处理多个任务")
+    parallel_chain = RunnableParallel(
+        ai=prompt | llm | StrOutputParser(),
+        ml=ChatPromptTemplate.from_template("简洁解释机器学习: {question}") | llm | StrOutputParser(),
+    )
+
+    results = parallel_chain.invoke({"question": "人工智能"})
+    print(f"AI 回答: {results['ai'][:80]}...")
+    print(f"ML 回答: {results['ml'][:80]}...")
+
+    print("\n提示:")
+    print("- 对于简单任务 → 使用基础 LCEL")
+    print("- 对于自定义处理 → 添加 RunnableLambda")
+    print("- 对于并行任务 → 使用 RunnableParallel")
+    print("- 对于需要工具的应用 → 参考 06-agents 目录")
+    print()
+
+
 def main():
     """主函数，运行所有示例"""
-    print("LangChain Chains 组件基础示例 (LangChain 1.x / LCEL 版本)")
+    print("LangChain Chains 组件基础示例 (LangChain 1.0+ 版本)")
     print("=" * 60)
-    print("在 LangChain 1.x 中，推荐使用 LCEL (LangChain Expression Language)")
-    print("使用 pipe operator (|) 组合组件，而不是传统的 Chain 类")
+    print("本示例展示 LCEL (LangChain Expression Language) 的用法")
+    print("LCEL 适用于简单的 prompt → model 流程")
+    print("对于需要工具的 Agent 应用，请参考 06-agents 目录")
     print("=" * 60)
     print()
 
     try:
+        # LCEL 模式对比示例
+        compare_apis_example()
+
         # 基础LCEL链示例
         basic_lcel_chain_example()
 

@@ -5,42 +5,75 @@
 [![LangGraph](https://img.shields.io/badge/langgraph-1.0+-green.svg)](https://python.langchain.com/)
 
 一个全面的 LangChain 1.x 学习项目，包含所有核心组件的详细示例和最佳实践。
-**更新日期：2025年 | 支持 LangChain 1.0+ 和 LangGraph 1.0+**
+**更新日期：2025年1月 | 当前版本: LangChain 1.2.0 + LangGraph 1.0.5**
 
 ## 📚 项目概述
 
 本项目提供了 LangChain 1.x 框架的完整学习路径，从基础概念到高级应用，涵盖了所有主要组件的使用方法。
 
-> **重要更新（2025年10月）**：LangChain 1.0 发布了重大架构更新，所有chains和agents已被重构为基于LangGraph的统一抽象。本项目已更新以支持这些变化。
+> **最新更新（2025年1月）**：项目已优化以反映 LangChain 1.2.0 的 API。重点展示 LCEL (LangChain Expression Language) 的正确用法，并清理了所有已弃用的代码模式。详见 [OPTIMIZATION_SUMMARY_2025.md](./OPTIMIZATION_SUMMARY_2025.md)
+
+### 🎯 核心变化
+
+1. **LCEL 是构建链的标准方式** - 使用 pipe operator (`|`) 组合组件
+2. **移除了所有已弃用的 Chain 类** - `LLMChain`, `SequentialChain`, `RouterChain` 等
+3. **推荐使用 `@tool` 装饰器** - 简化工具定义 (06-agents)
+4. **结构化输出支持 Pydantic v2** - 使用 `with_structured_output()`
 
 ### 🎯 学习目标
-- 掌握 LangChain 1.x 的核心组件和新API
-- 理解 LangChain Expression Language (LCEL)
-- 学习使用 LangGraph 构建状态ful agents
-- 掌握 `create_agent()` 新API
+- 掌握 LCEL (LangChain Expression Language) - **构建链的标准方式**
+- 理解何时使用 LCEL vs Agent
 - 学会使用 `with_structured_output()` 和 Pydantic v2
+- 掌握 `@tool` 装饰器定义工具
 - 了解异步处理和性能优化技巧
+
+### 📖 学习路径
+
+```
+推荐学习路径：
+
+1. 01-models - 模型基础
+   ↓
+2. 02-prompts - 提示词管理
+   ↓
+3. 03-chains - LCEL 链式调用 ⚡ 已更新
+   ↓
+4. 06-agents - Agent 和工具使用 ⚡ 已更新
+   ↓
+5. 其他高级组件 (07-tools, 08-callbacks, etc.)
+
+注意: 03-chains 和 06-agents 已根据 LangChain 1.2.0 API 更新
+```
 
 ## 🏗️ 项目结构
 
 ```
 langchain1.x/
-├── 01-models/          # Models 组件 (LLM, Chat Models, Embeddings)
-├── 02-prompts/         # Prompts 组件 (Templates, Selectors, Parsers)
-├── 03-chains/          # Chains 组件 (LCEL, Sequential, Parallel)
-├── 04-indexes/         # Indexes 组件 (Loaders, Splitters, VectorStores)
-├── 05-memory/          # Memory 组件 (Buffer, Conversation, Summary)
-├── 06-agents/          # Agents 组件 (Tools, Executers, ReAct)
-├── 07-tools/           # Tools 组件 (Search, APIs, Custom Tools)
-├── 08-callbacks/       # Callbacks 组件 (Handlers, Streaming, Monitoring)
-├── requirements.txt    # 依赖列表
-└── README.md          # 项目说明
+├── 01-models/          # ✅ Models 组件 (LLM, Chat Models, Embeddings)
+├── 02-prompts/         # ✅ Prompts 组件 (Templates, Selectors, Parsers)
+├── 03-chains/          # ⚡ 已更新 - LCEL vs create_agent() 对比
+├── 04-indexes/         # ⚠️ Indexes 组件 (待检查)
+├── 05-memory/          # ⚠️ Memory 组件 (待检查)
+├── 06-agents/          # ⚡ 已更新 - create_agent() API
+├── 07-tools/           # ⚠️ Tools 组件 (待检查)
+├── 08-callbacks/       # ⚠️ Callbacks 组件 (待检查)
+├── 09-structured-output/ # ⚠️ 结构化输出 (待检查)
+├── requirements.txt    # ✅ 依赖列表 (已更新)
+├── OPTIMIZATION_SUMMARY_2025.md # ⚡ 最新优化总结
+├── LANGCHAIN_1X_MIGRATION_GUIDE.md # ⚡ 迁移指南
+└── README.md          # ⚡ 已更新
 ```
 
-## 🚀 LangChain 1.0 新特性（2025更新）
+### 标记说明
+- ✅ **已完成** - 符合 LangChain 1.0+ 标准
+- ⚡ **已更新** - 2025年1月最新优化
+- ⚠️ **待检查** - 需要验证是否符合最新标准
+
+## 🚀 LangChain 1.0+ 新特性（2025更新）
 
 ### 1. 统一的Agent抽象 (`create_agent`)
-新的标准方式构建agents，替代旧的chains：
+
+**新的标准方式构建agents** - 替代旧的 chains:
 
 ```python
 from langchain.agents import create_agent
@@ -51,15 +84,26 @@ class ResponseFormat(BaseModel):
     summary: str
     sentiment: str
 
-# 使用新的create_agent API
+# 使用 create_agent API
 agent = create_agent(
     model="gpt-4o-mini",
     tools=[tool1, tool2],
-    response_format=ResponseFormat  # 结构化输出
+    system_prompt="你是一个有用的助手",  # 注意: system_prompt 不是 prompt
+    response_format=ResponseFormat,  # 结构化输出
 )
 
-result = agent.invoke({"messages": [("user", "Analyze this text")]})
+result = agent.invoke({
+    "messages": [{"role": "user", "content": "Analyze this text"}]
+})
 ```
+
+**关键参数**:
+- ✅ `system_prompt` (不是 `prompt`) - 系统提示词
+- ✅ `model` - 字符串或模型实例
+- ✅ `tools` - 使用 `@tool` 装饰器定义
+- ✅ `response_format` - Pydantic v2 结构化输出
+- ✅ `checkpointer` - 记忆持久化
+- ✅ `middleware` - 动态提示修改
 
 ### 2. LangGraph原生集成
 所有agents现在基于LangGraph构建：
