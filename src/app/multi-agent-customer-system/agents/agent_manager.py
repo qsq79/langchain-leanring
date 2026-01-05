@@ -18,6 +18,15 @@ from agents.summary_agent import SummaryAgent
 
 logger = get_logger(__name__)
 
+# 导入混合意图解析器
+try:
+    from app.hybrid_intent_parser import hybrid_intent_parser, IntentRecognitionStrategy
+    HYBRID_PARSER_AVAILABLE = True
+    logger.info("混合意图解析器可用")
+except ImportError:
+    HYBRID_PARSER_AVAILABLE = False
+    logger.warning("混合意图解析器不可用，将使用规则匹配")
+
 
 @dataclass
 class AgentInteraction:
@@ -33,20 +42,32 @@ class AgentInteraction:
 class AgentManager:
     """智能体通信管理器 - 基于 AutoGen"""
 
-    def __init__(self):
-        """初始化智能体管理器"""
+    def __init__(self, use_hybrid_intent: bool = True):
+        """
+        初始化智能体管理器
+
+        Args:
+            use_hybrid_intent: 是否使用混合意图识别（默认 True）
+        """
         # 初始化各个智能体
         self.order_agent = OrderAgent("order_agent")
         self.logistics_agent = LogisticsAgent("logistics_agent")
         self.summary_agent = SummaryAgent("summary_agent")
-        
+
         self.interactions: List[AgentInteraction] = []
         self.visualizer_enabled = True
-        
+
+        # 意图识别配置
+        self.use_hybrid_intent = use_hybrid_intent and HYBRID_PARSER_AVAILABLE
+        if self.use_hybrid_intent:
+            logger.info("启用混合意图识别（规则 + LLM）")
+        else:
+            logger.info("使用规则意图识别")
+
         # AutoGen 智能体列表
         self.autogen_agents = []
         self._initialize_autogen_team()
-        
+
         logger.info("智能体通信管理器初始化完成 (基于 AutoGen)")
         logger.info(f"加载智能体: {[agent.name for agent in [self.order_agent, self.logistics_agent, self.summary_agent]]}")
 
@@ -119,10 +140,32 @@ class AgentManager:
                 "user_query": user_query,
                 "order_id": order_id
             }
-            
-            # 判断需要哪些智能体
-            needs_order = self._needs_order_info(user_query, order_id)
-            needs_logistics = self._needs_logistics_info(user_query, order_id)
+
+            # 意图识别（混合模式或规则模式）
+            if self.use_hybrid_intent:
+                # 使用混合意图识别器
+                parse_result = await hybrid_intent_parser.parse(user_query)
+                logger.info(f"混合意图识别结果: {parse_result.get('recognition_method', 'unknown')}")
+                logger.info(f"识别意图: {parse_result.get('intent')}, 置信度: {parse_result.get('confidence', 0):.2f}")
+
+                # 根据意图判断需要哪些智能体
+                intent = parse_result.get('intent', 'general')
+                needs_order = intent in ['order_status', 'general'] and (
+                    order_id is not None or parse_result.get('order_id') is not None
+                )
+                needs_logistics = intent in ['logistics', 'general'] and (
+                    order_id is not None or parse_result.get('order_id') is not None
+                )
+
+                # 如果解析出了订单 ID，使用解析出的
+                if parse_result.get('order_id') and not order_id:
+                    order_id = parse_result['order_id']
+                    query_request['order_id'] = order_id
+                    logger.info(f"使用解析出的订单 ID: {order_id}")
+            else:
+                # 使用规则匹配
+                needs_order = self._needs_order_info(user_query, order_id)
+                needs_logistics = self._needs_logistics_info(user_query, order_id)
             
             logger.info(f"智能体分配 - 订单查询: {needs_order}, 物流查询: {needs_logistics}")
             
