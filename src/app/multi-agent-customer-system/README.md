@@ -1,10 +1,12 @@
 # 多智能体客服系统 (Multi-Agent Customer Service System)
 
-> 基于 AutoGen 框架的企业级多智能体客服系统，通过多个专业智能体协同工作处理客户服务问题，提供订单状态查询、物流信息查询等智能服务。
+> 基于 **AutoGen 框架** 的企业级多智能体客服系统，通过多个专业智能体协同工作处理客户服务问题，提供订单状态查询、物流信息查询等智能服务。
 
 ## 📖 项目概述
 
-本系统采用多智能体协同架构，通过订单查询智能体、物流查询智能体和结果汇总智能体三个专门智能体协同工作，自动化处理客户关于订单状态和物流信息的查询，提供智能化的回复服务。
+本系统采用多智能体协同架构，通过 AutoGen 框架实现订单查询智能体、物流查询智能体和结果汇总智能体三个专门智能体协同工作，自动化处理客户关于订单状态和物流信息的查询，提供智能化的回复服务。
+
+**重要提示**: 本系统必须安装 AutoGen 框架才能运行，不支持基础模式。
 
 ### 核心特性
 
@@ -62,6 +64,7 @@
 
 - Python >= 3.8
 - pip (Python 包管理器）
+- **AutoGen 框架** (必须安装)
 
 ### 安装步骤
 
@@ -83,7 +86,16 @@ venv\Scripts\activate  # Windows
 3. **安装依赖**
 
 ```bash
+# 安装所有依赖（包括 AutoGen）
 pip install -r requirements.txt
+
+# 或单独安装 AutoGen
+pip install autogen-agentchat
+```
+
+**注意**: AutoGen 是本系统的核心依赖，必须安装后才能运行系统。如果遇到 ImportError 提示 AutoGen 未安装，请先安装 AutoGen：
+```bash
+pip install autogen-agentchat
 ```
 
 4. **配置环境变量**
@@ -232,9 +244,14 @@ multi-agent-customer-system/
 | 技术 | 版本 | 用途 |
 |-----|------|------|
 | **Python** | >= 3.8 | 编程语言 |
-| **AutoGen** | >= 0.2.0 | 多智能体框架 |
+| **AutoGen** | >= 0.4.0 | 多智能体框架 (**必须**) |
 | **FastAPI** | >= 0.104.1 | Web API 框架 |
 | **Uvicorn** | >= 0.24.0 | ASGI 服务器 |
+
+**重要说明**:
+- AutoGen 是本系统的核心框架，必须安装
+- 系统启动时会检查 AutoGen 是否可用，如果未安装会直接报错
+- 不再支持基础模式或无 AutoGen 的运行方式
 
 ### 数据处理
 
@@ -451,13 +468,24 @@ multi-agent-customer-system/
 
 ## 📧 常见问题
 
+### Q: 系统启动时提示 "AutoGen 框架未安装" 怎么办？
+
+A: 请运行以下命令安装 AutoGen:
+```bash
+pip install autogen-agentchat
+```
+如果遇到网络问题，可以使用国内镜像源：
+```bash
+pip install autogen-agentchat -i https://pypi.tuna.tsinghua.edu.cn/simple
+```
+
 ### Q: 如何启用 OpenAI API？
 
 A: 在 `.env` 文件中设置正确的 `OPENAI_API_KEY`。如果你使用代理，还需要设置 `OPENAI_API_BASE`。
 
 ### Q: 智能体交互过程如何查看？
 
-A: 系统默认会显示智能体交互过程。你也可以在日志文件 `logs/agent_interaction_YYYY-MM-DD.log` 中查看详细记录。
+A: 系统默认会显示智能体交互过程（基于 AutoGen）。你也可以在日志文件 `logs/agent_interaction_YYYY-MM-DD.log` 中查看详细记录。
 
 ### Q: 如何自定义重试策略？
 
@@ -467,9 +495,13 @@ A: 在 `.env` 文件中修改以下配置：
 - `RETRY_MULTIPLIER`: 退避因子
 - `RETRY_MAX_ATTEMPTS`: 最大重试次数
 
+### Q: 系统支持基础模式吗？
+
+A: **不支持**。本系统必须使用 AutoGen 框架运行。如果 AutoGen 未安装，系统会在启动时报错并提示安装。这是为了确保系统能够充分利用 AutoGen 的多智能体协同能力。
+
 ### Q: 如何添加新的智能体？
 
-A: 参考现有的智能体实现（`agents/` 目录），创建新的智能体类，然后在 `agent_manager.py` 中集成。
+A: 参考现有的智能体实现（`agents/` 目录），创建新的智能体类（必须基于 AutoGen 的 AssistantAgent），然后在 `agent_manager.py` 中集成。
 
 ## 📄 许可证
 
