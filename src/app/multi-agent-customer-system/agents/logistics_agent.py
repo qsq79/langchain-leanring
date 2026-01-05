@@ -1,36 +1,28 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-物流查询智能体（Agent B）
+物流查询智能体（Agent B）- 基于 AutoGen
 负责查询物流跟踪信息
 """
 
-import httpx
-from typing import Dict, Any, Optional
-from dataclasses import dataclass
+from typing import Dict, Any
 
-from core.logger import get_logger, log_agent_action, log_agent_message
-from services.mock_data import logistics_data
-from services.retry_mechanism import RetryMechanism
+from autogen_agentchat.agents import AssistantAgent
+from core.logger import get_logger
 from config.settings import settings
+from tools.autogen_tools import (
+    query_logistics_tool,
+    generate_logistics_summary,
+    get_model_client
+)
 
 logger = get_logger(__name__)
 
 
-@dataclass
-class LogisticsQueryResult:
-    """物流查询结果"""
-    success: bool
-    order_id: str
-    logistics_info: Optional[Dict[str, Any]]
-    error_message: Optional[str] = None
-    retry_attempts: int = 0
-
-
 class LogisticsAgent:
-    """物流查询智能体"""
+    """物流查询智能体 - 基于 AutoGen"""
 
-    def __init__(self, name: str = "Agent B"):
+    def __init__(self, name: str = "logistics_agent"):
         """
         初始化物流查询智能体
         
@@ -38,105 +30,107 @@ class LogisticsAgent:
             name: 智能体名称
         """
         self.name = name
-        self.role = "物流查询智能体"
-        self.description = "负责查询订单的物流跟踪信息"
-        self.retry_mechanism = RetryMechanism()
+        self.role = "物流查询专家"
+        self.description = (
+            "你是物流查询专家，专门负责查询和跟踪订单的物流信息。"
+            "你可以查询物流状态、当前位置、预计送达时间和完整的物流轨迹。"
+            "当用户询问物流、配送、快递相关的任何问题时，使用提供的工具函数查询物流信息。"
+        )
         
-        logger.info(f"{self.name} 初始化完成 - {self.role}")
+        # 创建 AutoGen AssistantAgent
+        model_client = get_model_client(
+            api_key=settings.OPENAI_API_KEY,
+            base_url=settings.OPENAI_API_BASE,
+            model=settings.MODEL_NAME
+        )
+        
+        self.agent = AssistantAgent(
+            name=self.name,
+            system_message=self.description,
+            model_client=model_client,
+            tools=[query_logistics_tool, generate_logistics_summary]
+        )
 
-    async def query_logistics(self, order_id: str) -> LogisticsQueryResult:
+        logger.info(f"{self.name} 初始化完成 - {self.role} (基于 AutoGen)")
+
+    async def query_logistics(self, order_id: str) -> Dict[str, Any]:
         """
         查询物流信息
-        
+
         Args:
             order_id: 订单编号
-            
+
         Returns:
             物流查询结果
         """
-        log_agent_action(self.name, "开始查询物流", f"订单编号: {order_id}")
-        
-        try:
-            # 记录向数据存储发送请求
-            log_agent_message(
-                self.name,
-                "数据存储",
-                "DATA_REQUEST",
-                f"查询物流 {order_id}"
-            )
-            
-            # 获取物流数据（带重试机制）
-            async def fetch_logistics():
-                logistics_info = logistics_data.get_logistics(order_id)
-                if logistics_info is None:
-                    logger.warning(f"物流信息不存在: {order_id}")
-                    raise ValueError(f"物流信息不存在: {order_id}")
-                return logistics_info
-            
-            logistics_info = await self.retry_mechanism.async_execute_with_retry(fetch_logistics)
-            
-            # 记录数据存储响应
-            if settings.SHOW_API_LOGS:
-                log_agent_message(
-                    "数据存储",
-                    self.name,
-                    "DATA_RESPONSE",
-                    f"成功获取物流信息: {order_id}"
-                )
-            
-            log_agent_action(self.name, "查询成功", f"物流 {order_id}")
-            
-            return LogisticsQueryResult(
-                success=True,
-                order_id=order_id,
-                logistics_info=logistics_info
-            )
-            
-        except ValueError as e:
-            log_agent_action(self.name, "查询失败", f"物流信息不存在: {order_id}")
-            return LogisticsQueryResult(
-                success=False,
-                order_id=order_id,
-                logistics_info=None,
-                error_message=str(e)
-            )
-            
-        except Exception as e:
-            log_agent_action(self.name, "查询失败", f"未知错误: {str(e)}")
-            return LogisticsQueryResult(
-                success=False,
-                order_id=order_id,
-                logistics_info=None,
-                error_message=f"查询失败: {str(e)}"
-            )
+        logger.info(f"[{self.name}] 开始查询物流: {order_id}")
 
-    def get_logistics_summary(self, logistics_info: Dict[str, Any]) -> str:
+        try:
+            # 直接调用工具函数获取数据
+            tool_result = query_logistics_tool(order_id)
+
+            # 构建结果
+            result = {
+                "success": tool_result.get("success", False),
+                "order_id": order_id,
+                "logistics_info": tool_result.get("logistics_info"),
+                "error": tool_result.get("error"),
+                "agent": self.name,
+                "agent_role": self.role
+            }
+
+            logger.info(f"[{self.name}] 物流查询完成: {order_id}, 成功: {result['success']}")
+            return result
+
+        except Exception as e:
+            logger.error(f"[{self.name}] 物流查询异常: {e}")
+            return {
+                "success": False,
+                "order_id": order_id,
+                "error": f"查询失败: {str(e)}",
+                "logistics_info": None,
+                "agent": self.name
+            }
+
+    def _parse_logistics_response(self, order_id: str, response: Any) -> Dict[str, Any]:
         """
-        生成物流信息摘要
+        解析 AutoGen 智能体的响应
         
         Args:
-            logistics_info: 物流信息字典
+            order_id: 订单编号
+            response: AutoGen 响应
             
         Returns:
-            物流摘要字符串
+            解析后的结果字典
         """
-        if not logistics_info:
-            return "无物流信息"
+        # 调用工具函数获取实际数据
+        tool_result = query_logistics_tool(order_id)
         
-        summary = f"""物流信息摘要:
-- 订单编号: {logistics_info.get('order_id', 'N/A')}
-- 物流状态: {logistics_info.get('logistics_status', 'N/A')}
-- 当前位置: {logistics_info.get('current_location', 'N/A')}
-- 预计送达: {logistics_info.get('estimated_delivery', 'N/A')}
-- 物流轨迹: {len(logistics_info.get('tracking_history', []))} 条记录"""
+        if not tool_result.get("success"):
+            return {
+                "success": False,
+                "order_id": order_id,
+                "error": tool_result.get("error", "查询失败"),
+                "logistics_info": None,
+                "agent_response": str(response) if response else None,
+                "agent": self.name
+            }
         
-        # 添加最近的物流轨迹
-        tracking_history = logistics_info.get('tracking_history', [])
-        if tracking_history:
-            latest = tracking_history[-1]
-            summary += f"\n- 最新状态: {latest.get('time', 'N/A')} - {latest.get('status', 'N/A')} @ {latest.get('location', 'N/A')}"
+        # 生成摘要（如果 AutoGen 返回了摘要就用其返回值，否则重新生成）
+        if isinstance(response, dict) and response.get("summary"):
+            logistics_summary = response["summary"]
+        else:
+            logistics_summary = generate_logistics_summary(tool_result["logistics_info"])
         
-        return summary
+        return {
+            "success": True,
+            "order_id": order_id,
+            "logistics_info": tool_result["logistics_info"],
+            "agent_summary": logistics_summary,
+            "agent_response": str(response) if response else None,
+            "agent": self.name,
+            "agent_role": self.role
+        }
 
     async def process_request(self, query: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -151,7 +145,7 @@ class LogisticsAgent:
         order_id = query.get("order_id")
         
         if not order_id:
-            log_agent_action(self.name, "请求错误", "缺少订单编号")
+            logger.warning(f"[{self.name}] 请求错误：缺少订单编号")
             return {
                 "agent": self.name,
                 "success": False,
@@ -161,31 +155,18 @@ class LogisticsAgent:
         # 查询物流
         result = await self.query_logistics(order_id)
         
-        # 准备响应
-        response = {
-            "agent": self.name,
-            "agent_role": self.role,
-            "success": result.success,
-            "order_id": result.order_id,
-            "logistics_info": result.logistics_info,
-            "error": result.error_message,
-            "agent_summary": self.get_logistics_summary(result.logistics_info) if result.success else None
-        }
-        
-        # 记录向结果汇总智能体发送结果
-        log_agent_message(
-            self.name,
-            "结果汇总智能体",
-            "RESULT_SEND",
-            f"发送物流查询结果: {order_id}"
-        )
-        
-        return response
+        logger.info(f"[{self.name}] 处理请求完成: {order_id}")
+        return result
 
     def get_info(self) -> Dict[str, str]:
         """获取智能体信息"""
         return {
             "name": self.name,
             "role": self.role,
-            "description": self.description
+            "description": self.description,
+            "type": "AutoGen AssistantAgent"
         }
+
+    def get_autogen_agent(self):
+        """获取底层的 AutoGen 智能体对象"""
+        return self.agent

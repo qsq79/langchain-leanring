@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-智能体通信管理器
+智能体通信管理器 - 基于 AutoGen
 管理多智能体之间的协同工作和消息传递
 """
 
@@ -9,7 +9,8 @@ import asyncio
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
 from datetime import datetime
-
+from autogen_agentchat.teams import RoundRobinGroupChat, SelectorGroupChat
+from autogen_agentchat.conditions import TextMentionTermination
 from core.logger import get_logger, log_agent_message
 from agents.order_agent import OrderAgent
 from agents.logistics_agent import LogisticsAgent
@@ -30,19 +31,55 @@ class AgentInteraction:
 
 
 class AgentManager:
-    """智能体通信管理器"""
+    """智能体通信管理器 - 基于 AutoGen"""
 
     def __init__(self):
         """初始化智能体管理器"""
-        self.order_agent = OrderAgent("Agent A")
-        self.logistics_agent = LogisticsAgent("Agent B")
-        self.summary_agent = SummaryAgent("Agent C")
+        # 初始化各个智能体
+        self.order_agent = OrderAgent("order_agent")
+        self.logistics_agent = LogisticsAgent("logistics_agent")
+        self.summary_agent = SummaryAgent("summary_agent")
         
         self.interactions: List[AgentInteraction] = []
         self.visualizer_enabled = True
         
-        logger.info("智能体通信管理器初始化完成")
+        # AutoGen 智能体列表
+        self.autogen_agents = []
+        self._initialize_autogen_team()
+        
+        logger.info("智能体通信管理器初始化完成 (基于 AutoGen)")
         logger.info(f"加载智能体: {[agent.name for agent in [self.order_agent, self.logistics_agent, self.summary_agent]]}")
+
+    def _initialize_autogen_team(self):
+        """
+        初始化 AutoGen 多智能体团队
+        """
+        try:
+            # 获取 AutoGen 智能体对象
+            agents = []
+            if self.order_agent.get_autogen_agent():
+                agents.append(self.order_agent.get_autogen_agent())
+            if self.logistics_agent.get_autogen_agent():
+                agents.append(self.logistics_agent.get_autogen_agent())
+            if self.summary_agent.get_autogen_agent():
+                agents.append(self.summary_agent.get_autogen_agent())
+            
+            if len(agents) >= 2:
+                # 创建 RoundRobinGroupChat 团队（轮询式）
+                # 注意：在实际使用中，可能需要使用更适合的团队类型
+                self.autogen_agents = agents
+                
+                # 预设的终止条件（当收到汇总消息时终止）
+                self.termination_condition = TextMentionTermination("TERMINATE")
+                
+                logger.info(f"AutoGen 团队初始化成功，包含 {len(agents)} 个智能体")
+            else:
+                logger.warning(f"AutoGen 智能体数量不足: {len(agents)}")
+                self.autogen_agents = []
+                
+        except Exception as e:
+            logger.error(f"AutoGen 团队初始化失败: {e}")
+            self.autogen_agents = []
 
     async def process_query(
         self,
@@ -83,64 +120,83 @@ class AgentManager:
                 "order_id": order_id
             }
             
+            # 判断需要哪些智能体
+            needs_order = self._needs_order_info(user_query, order_id)
+            needs_logistics = self._needs_logistics_info(user_query, order_id)
+            
+            logger.info(f"智能体分配 - 订单查询: {needs_order}, 物流查询: {needs_logistics}")
+            
+            # 记录任务分发
+            if needs_order:
+                self._add_interaction(
+                    self.summary_agent.name,
+                    self.order_agent.name,
+                    "TASK_DISPATCH",
+                    f"查询订单: {order_id if order_id else '从查询中提取'}"
+                )
+            
+            if needs_logistics:
+                self._add_interaction(
+                    self.summary_agent.name,
+                    self.logistics_agent.name,
+                    "TASK_DISPATCH",
+                    f"查询物流: {order_id if order_id else '从查询中提取'}"
+                )
+            
             # 并行执行订单查询和物流查询
-            logger.info(f"分发任务给订单查询智能体和物流查询智能体")
+            tasks = []
+            order_result = None
+            logistics_result = None
             
-            self._add_interaction(
-                self.summary_agent.name,
-                "订单查询智能体",
-                "TASK_DISPATCH",
-                f"查询订单: {order_id if order_id else '从查询中提取'}"
-            )
+            if needs_order:
+                tasks.append(self.order_agent.process_request(query_request))
+            if needs_logistics:
+                tasks.append(self.logistics_agent.process_request(query_request))
             
-            self._add_interaction(
-                self.summary_agent.name,
-                "物流查询智能体",
-                "TASK_DISPATCH",
-                f"查询物流: {order_id if order_id else '从查询中提取'}"
-            )
-            
-            # 并行执行
-            order_task = self.order_agent.process_request(query_request)
-            logistics_task = self.logistics_agent.process_request(query_request)
-            
-            order_result, logistics_result = await asyncio.gather(
-                order_task, logistics_task, return_exceptions=True
-            )
-            
-            # 处理可能的异常
-            if isinstance(order_result, Exception):
-                logger.error(f"订单查询智能体异常: {order_result}")
-                order_result = {
-                    "agent": self.order_agent.name,
-                    "success": False,
-                    "error": f"智能体异常: {str(order_result)}"
-                }
-            
-            if isinstance(logistics_result, Exception):
-                logger.error(f"物流查询智能体异常: {logistics_result}")
-                logistics_result = {
-                    "agent": self.logistics_agent.name,
-                    "success": False,
-                    "error": f"智能体异常: {str(logistics_result)}"
-                }
+            if tasks:
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                
+                # 解析结果
+                result_index = 0
+                if needs_order:
+                    order_result = results[result_index]
+                    result_index += 1
+                    if isinstance(order_result, Exception):
+                        logger.error(f"订单查询智能体异常: {order_result}")
+                        order_result = {
+                            "agent": self.order_agent.name,
+                            "success": False,
+                            "error": f"智能体异常: {str(order_result)}"
+                        }
+                
+                if needs_logistics:
+                    logistics_result = results[result_index]
+                    if isinstance(logistics_result, Exception):
+                        logger.error(f"物流查询智能体异常: {logistics_result}")
+                        logistics_result = {
+                            "agent": self.logistics_agent.name,
+                            "success": False,
+                            "error": f"智能体异常: {str(logistics_result)}"
+                        }
             
             # 汇总结果
             logger.info("汇总查询结果，生成回复")
             
-            self._add_interaction(
-                "订单查询智能体",
-                self.summary_agent.name,
-                "RESULT传递",
-                f"订单查询结果: {order_result.get('success', False)}"
-            )
+            if order_result:
+                self._add_interaction(
+                    self.order_agent.name,
+                    self.summary_agent.name,
+                    "RESULT传递",
+                    f"订单查询结果: {order_result.get('success', False)}"
+                )
             
-            self._add_interaction(
-                "物流查询智能体",
-                self.summary_agent.name,
-                "RESULT传递",
-                f"物流查询结果: {logistics_result.get('success', False)}"
-            )
+            if logistics_result:
+                self._add_interaction(
+                    self.logistics_agent.name,
+                    self.summary_agent.name,
+                    "RESULT传递",
+                    f"物流查询结果: {logistics_result.get('success', False)}"
+                )
             
             summary_result = await self.summary_agent.summarize_results(
                 user_query,
@@ -172,7 +228,8 @@ class AgentManager:
                 "response": summary_result.get('response', ''),
                 "interactions": self.interactions,
                 "processing_time": processing_time,
-                "timestamp": end_time.isoformat()
+                "timestamp": end_time.isoformat(),
+                "framework": "AutoGen"
             }
             
         except Exception as e:
@@ -187,8 +244,86 @@ class AgentManager:
                 "error": str(e),
                 "interactions": self.interactions,
                 "processing_time": processing_time,
-                "timestamp": end_time.isoformat()
+                "timestamp": end_time.isoformat(),
+                "framework": "AutoGen"
             }
+
+    async def process_query_with_autogen(
+        self,
+        user_query: str,
+        order_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        使用 AutoGen 团队处理用户查询（实验性功能）
+        
+        Args:
+            user_query: 用户查询字符串
+            order_id: 订单编号（可选）
+            
+        Returns:
+            处理结果字典
+        """
+        # 这个方法使用 AutoGen 的 Team 机制进行真正的多智能体协作
+        # 目前作为实验性功能，主要使用 process_query 方法
+        
+        logger.info("[AutoGen Team] 尝试使用 Team 机制处理查询")
+        
+        if not self.autogen_agents:
+            logger.warning("[AutoGen Team] 团队未初始化，回退到标准处理")
+            return await self.process_query(user_query, order_id)
+        
+        try:
+            # 构建消息
+            if order_id:
+                message = f"用户查询: {user_query}\n订单编号: {order_id}"
+            else:
+                message = f"用户查询: {user_query}\n请从查询中提取订单编号"
+            
+            # 创建团队（这里需要根据 AutoGen 的具体 API 调整）
+            # 注意：AutoGen 0.4.x 的 Team API 可能与旧版本不同
+            # 以下代码需要根据实际的 AutoGen 0.4.x API 进行调整
+            
+            # 目前回退到标准处理
+            logger.info("[AutoGen Team] Team 机制暂未实现，回退到标准处理")
+            return await self.process_query(user_query, order_id)
+            
+        except Exception as e:
+            logger.error(f"[AutoGen Team] 处理失败: {e}，回退到标准处理")
+            return await self.process_query(user_query, order_id)
+
+    def _needs_order_info(self, user_query: str, order_id: Optional[str]) -> bool:
+        """
+        判断是否需要查询订单信息
+        
+        Args:
+            user_query: 用户查询
+            order_id: 订单编号
+            
+        Returns:
+            是否需要查询订单信息
+        """
+        # 如果有订单编号，查询订单信息
+        if order_id:
+            return True
+        
+        # 根据查询内容判断
+        order_keywords = ["订单", "购买", "支付", "状态", "商品", "金额", "退款"]
+        return any(keyword in user_query for keyword in order_keywords)
+
+    def _needs_logistics_info(self, user_query: str, order_id: Optional[str]) -> bool:
+        """
+        判断是否需要查询物流信息
+        
+        Args:
+            user_query: 用户查询
+            order_id: 订单编号
+            
+        Returns:
+            是否需要查询物流信息
+        """
+        # 根据查询内容判断
+        logistics_keywords = ["物流", "快递", "配送", "送达", "运输", "轨迹", "快递单"]
+        return any(keyword in user_query for keyword in logistics_keywords)
 
     def _add_interaction(
         self,
@@ -236,7 +371,7 @@ class AgentManager:
         
         output = []
         output.append("\n" + "=" * 60)
-        output.append("智能体交互过程可视化")
+        output.append("智能体交互过程可视化 (基于 AutoGen)")
         output.append("=" * 60 + "\n")
         
         for idx, interaction in enumerate(interactions, 1):
@@ -248,19 +383,32 @@ class AgentManager:
         
         return '\n'.join(output)
 
-    def get_agent_info(self) -> Dict[str, Dict[str, str]]:
-        """获取所有智能体信息"""
+    def get_agent_info(self) -> Dict[str, Any]:
+        """
+        获取所有智能体的信息
+        
+        Returns:
+            智能体信息字典
+        """
         return {
             "order_agent": self.order_agent.get_info(),
             "logistics_agent": self.logistics_agent.get_info(),
-            "summary_agent": self.summary_agent.get_info()
+            "summary_agent": self.summary_agent.get_info(),
+            "autogen_team_size": len(self.autogen_agents),
+            "autogen_available": True,
+            "framework": "AutoGen"
         }
 
-    def reset(self):
-        """重置管理器状态"""
-        self.interactions.clear()
-        logger.info("智能体管理器已重置")
+    def get_autogen_team(self):
+        """
+        获取 AutoGen 团队对象
+        
+        Returns:
+            AutoGen 团队对象或 None
+        """
+        return self.autogen_agents
 
 
-# 全局智能体管理器实例
+# 创建全局智能体管理器实例
 agent_manager = AgentManager()
+logger.info("全局智能体管理器实例创建成功")

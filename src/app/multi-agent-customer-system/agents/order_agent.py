@@ -1,36 +1,28 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-订单查询智能体（Agent A）
+订单查询智能体（Agent A）- 基于 AutoGen
 负责查询订单状态信息
 """
 
-import httpx
-from typing import Dict, Any, Optional
-from dataclasses import dataclass
+from typing import Dict, Any
 
-from core.logger import get_logger, log_agent_action, log_agent_message
-from services.mock_data import order_data
-from services.retry_mechanism import RetryMechanism
+from autogen_agentchat.agents import AssistantAgent
+from core.logger import get_logger
 from config.settings import settings
+from tools.autogen_tools import (
+    query_order_tool,
+    generate_order_summary,
+    get_model_client
+)
 
 logger = get_logger(__name__)
 
 
-@dataclass
-class OrderQueryResult:
-    """订单查询结果"""
-    success: bool
-    order_id: str
-    order_info: Optional[Dict[str, Any]]
-    error_message: Optional[str] = None
-    retry_attempts: int = 0
-
-
 class OrderAgent:
-    """订单查询智能体"""
+    """订单查询智能体 - 基于 AutoGen"""
 
-    def __init__(self, name: str = "Agent A"):
+    def __init__(self, name: str = "order_agent"):
         """
         初始化订单查询智能体
         
@@ -38,101 +30,107 @@ class OrderAgent:
             name: 智能体名称
         """
         self.name = name
-        self.role = "订单查询智能体"
-        self.description = "负责查询订单的详细状态信息"
-        self.retry_mechanism = RetryMechanism()
+        self.role = "订单查询专家"
+        self.description = (
+            "你是订单查询专家，专门负责查询和管理订单相关信息。"
+            "你可以查询订单状态、支付状态、发货状态、订单金额和商品信息。"
+            "当用户询问订单相关的任何问题时，使用提供的工具函数查询订单信息。"
+        )
         
-        logger.info(f"{self.name} 初始化完成 - {self.role}")
+        # 创建 AutoGen AssistantAgent
+        model_client = get_model_client(
+            api_key=settings.OPENAI_API_KEY,
+            base_url=settings.OPENAI_API_BASE,
+            model=settings.MODEL_NAME
+        )
+        
+        self.agent = AssistantAgent(
+            name=self.name,
+            system_message=self.description,
+            model_client=model_client,
+            tools=[query_order_tool, generate_order_summary]
+        )
 
-    async def query_order(self, order_id: str) -> OrderQueryResult:
+        logger.info(f"{self.name} 初始化完成 - {self.role} (基于 AutoGen)")
+
+    async def query_order(self, order_id: str) -> Dict[str, Any]:
         """
         查询订单信息
-        
+
         Args:
             order_id: 订单编号
-            
+
         Returns:
             订单查询结果
         """
-        log_agent_action(self.name, "开始查询订单", f"订单编号: {order_id}")
-        
-        try:
-            # 记录向数据存储发送请求
-            log_agent_message(
-                self.name,
-                "数据存储",
-                "DATA_REQUEST",
-                f"查询订单 {order_id}"
-            )
-            
-            # 获取订单数据（带重试机制）
-            async def fetch_order():
-                order_info = order_data.get_order(order_id)
-                if order_info is None:
-                    logger.warning(f"订单不存在: {order_id}")
-                    raise ValueError(f"订单不存在: {order_id}")
-                return order_info
-            
-            order_info = await self.retry_mechanism.async_execute_with_retry(fetch_order)
-            
-            # 记录数据存储响应
-            if settings.SHOW_API_LOGS:
-                log_agent_message(
-                    "数据存储",
-                    self.name,
-                    "DATA_RESPONSE",
-                    f"成功获取订单信息: {order_id}"
-                )
-            
-            log_agent_action(self.name, "查询成功", f"订单 {order_id}")
-            
-            return OrderQueryResult(
-                success=True,
-                order_id=order_id,
-                order_info=order_info
-            )
-            
-        except ValueError as e:
-            log_agent_action(self.name, "查询失败", f"订单不存在: {order_id}")
-            return OrderQueryResult(
-                success=False,
-                order_id=order_id,
-                order_info=None,
-                error_message=str(e)
-            )
-            
-        except Exception as e:
-            log_agent_action(self.name, "查询失败", f"未知错误: {str(e)}")
-            return OrderQueryResult(
-                success=False,
-                order_id=order_id,
-                order_info=None,
-                error_message=f"查询失败: {str(e)}"
-            )
+        logger.info(f"[{self.name}] 开始查询订单: {order_id}")
 
-    def get_order_summary(self, order_info: Dict[str, Any]) -> str:
+        try:
+            # 直接调用工具函数获取数据
+            tool_result = query_order_tool(order_id)
+
+            # 构建结果
+            result = {
+                "success": tool_result.get("success", False),
+                "order_id": order_id,
+                "order_info": tool_result.get("order_info"),
+                "error": tool_result.get("error"),
+                "agent": self.name,
+                "agent_role": self.role
+            }
+
+            logger.info(f"[{self.name}] 订单查询完成: {order_id}, 成功: {result['success']}")
+            return result
+
+        except Exception as e:
+            logger.error(f"[{self.name}] 订单查询异常: {e}")
+            return {
+                "success": False,
+                "order_id": order_id,
+                "error": f"查询失败: {str(e)}",
+                "order_info": None,
+                "agent": self.name
+            }
+
+    def _parse_order_response(self, order_id: str, response: Any) -> Dict[str, Any]:
         """
-        生成订单信息摘要
+        解析 AutoGen 智能体的响应
         
         Args:
-            order_info: 订单信息字典
+            order_id: 订单编号
+            response: AutoGen 响应
             
         Returns:
-            订单摘要字符串
+            解析后的结果字典
         """
-        if not order_info:
-            return "无订单信息"
+        # 调用工具函数获取实际数据
+        tool_result = query_order_tool(order_id)
         
-        summary = f"""订单信息摘要:
-- 订单编号: {order_info.get('order_id', 'N/A')}
-- 创建时间: {order_info.get('created_time', 'N/A')}
-- 订单状态: {order_info.get('order_status', 'N/A')}
-- 支付状态: {order_info.get('payment_status', 'N/A')}
-- 发货状态: {order_info.get('shipping_status', 'N/A')}
-- 订单金额: ¥{order_info.get('total_amount', 0.00):.2f}
-- 商品数量: {len(order_info.get('items', []))} 件"""
+        if not tool_result.get("success"):
+            return {
+                "success": False,
+                "order_id": order_id,
+                "error": tool_result.get("error", "查询失败"),
+                "order_info": None,
+                "agent_response": str(response) if response else None,
+                "agent": self.name
+            }
         
-        return summary
+        # 生成摘要（如果 AutoGen 返回了摘要就用其返回值，否则重新生成）
+        if isinstance(response, dict) and response.get("summary"):
+            order_summary = response["summary"]
+        else:
+            order_summary = generate_order_summary(tool_result["order_info"])
+        
+        return {
+            "success": True,
+            "order_id": order_id,
+            "order_info": tool_result["order_info"],
+            "agent_summary": order_summary,
+            "agent_response": str(response) if response else None,
+            "agent": self.name,
+            "agent_role": self.role
+        }
 
     async def process_request(self, query: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -147,7 +145,7 @@ class OrderAgent:
         order_id = query.get("order_id")
         
         if not order_id:
-            log_agent_action(self.name, "请求错误", "缺少订单编号")
+            logger.warning(f"[{self.name}] 请求错误：缺少订单编号")
             return {
                 "agent": self.name,
                 "success": False,
@@ -157,31 +155,18 @@ class OrderAgent:
         # 查询订单
         result = await self.query_order(order_id)
         
-        # 准备响应
-        response = {
-            "agent": self.name,
-            "agent_role": self.role,
-            "success": result.success,
-            "order_id": result.order_id,
-            "order_info": result.order_info,
-            "error": result.error_message,
-            "agent_summary": self.get_order_summary(result.order_info) if result.success else None
-        }
-        
-        # 记录向结果汇总智能体发送结果
-        log_agent_message(
-            self.name,
-            "结果汇总智能体",
-            "RESULT_SEND",
-            f"发送订单查询结果: {order_id}"
-        )
-        
-        return response
+        logger.info(f"[{self.name}] 处理请求完成: {order_id}")
+        return result
 
     def get_info(self) -> Dict[str, str]:
         """获取智能体信息"""
         return {
             "name": self.name,
             "role": self.role,
-            "description": self.description
+            "description": self.description,
+            "type": "AutoGen AssistantAgent"
         }
+
+    def get_autogen_agent(self):
+        """获取底层的 AutoGen 智能体对象"""
+        return self.agent

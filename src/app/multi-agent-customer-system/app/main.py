@@ -49,19 +49,24 @@ class MultiAgentCustomerSystem:
 
     def display_agent_info(self):
         """显示智能体信息"""
+        if agent_manager is None:
+            self.console.print("[yellow]警告: 智能体管理器未初始化[/yellow]")
+            return
+            
         agent_info = agent_manager.get_agent_info()
         
-        table = Table(title="智能体信息")
+        table = Table(title="智能体信息 (基于 AutoGen)")
         table.add_column("智能体", style="cyan")
         table.add_column("角色", style="magenta")
         table.add_column("描述", style="green")
         
         for agent_name, info in agent_info.items():
-            table.add_row(
-                info.get('name', ''),
-                info.get('role', ''),
-                info.get('description', '')
-            )
+            if agent_name not in ['autogen_team_size', 'autogen_available', 'framework'] and isinstance(info, dict):
+                table.add_row(
+                    info.get('name', ''),
+                    info.get('role', ''),
+                    info.get('description', '')
+                )
         
         self.console.print(table)
 
@@ -111,6 +116,15 @@ class MultiAgentCustomerSystem:
             user_input: 用户输入字符串
         """
         try:
+            if agent_manager is None:
+                error_panel = Panel(
+                    "智能体管理器未初始化，无法处理查询",
+                    title="错误",
+                    border_style="red"
+                )
+                self.console.print(error_panel)
+                return
+            
             # 解析查询
             parse_result = query_parser.parse(user_input)
             
@@ -147,7 +161,12 @@ class MultiAgentCustomerSystem:
     async def interactive_mode(self):
         """交互式模式"""
         self.display_welcome()
-        self.display_agent_info()
+        
+        if agent_manager:
+            self.display_agent_info()
+        else:
+            self.console.print("[red]错误: 智能体管理器未初始化，系统无法运行[/red]\n")
+            return
         
         self.console.print("\n[blue]提示: 输入 'exit' 或 'quit' 退出\n")
         

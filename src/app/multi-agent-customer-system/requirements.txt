@@ -1,8 +1,9 @@
 # OpenAI API
 openai>=1.12.0
 
-# AutoGen 框架（可选，如果需要）
-# autogen-agentchat>=0.2.0
+# AutoGen 框架（核心依赖）
+autogen-agentchat>=0.4.0
+autogen-ext>=0.4.0
 
 # Web 框架
 fastapi>=0.104.1
