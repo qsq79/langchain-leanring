@@ -20,7 +20,7 @@ class Settings(BaseSettings):
 
     # ========== API 密钥 ==========
     OPENAI_API_KEY: str = Field(..., description="OpenAI API 密钥")
-    OPENAI_API_BASE: str = "https://api.openai.com/v1"
+    OPENAI_API_BASE: str = "https://api.vveai.com/v1"
 
     # ========== API 服务配置 ==========
     API_HOST: str = "0.0.0.0"

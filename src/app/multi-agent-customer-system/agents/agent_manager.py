@@ -147,15 +147,14 @@ class AgentManager:
                 parse_result = await hybrid_intent_parser.parse(user_query)
                 logger.info(f"混合意图识别结果: {parse_result.get('recognition_method', 'unknown')}")
                 logger.info(f"识别意图: {parse_result.get('intent')}, 置信度: {parse_result.get('confidence', 0):.2f}")
-
-                # 根据意图判断需要哪些智能体
-                intent = parse_result.get('intent', 'general')
-                needs_order = intent in ['order_status', 'general'] and (
-                    order_id is not None or parse_result.get('order_id') is not None
-                )
-                needs_logistics = intent in ['logistics', 'general'] and (
-                    order_id is not None or parse_result.get('order_id') is not None
-                )
+                
+                # 获取 LLM 推荐的 Agent 列表
+                recommended_agents = parse_result.get('recommended_agents', [])
+                logger.info(f"LLM 推荐的 Agent: {recommended_agents}")
+                
+                # 如果 LLM 推理过程存在，记录它
+                if 'llm_reasoning' in parse_result:
+                    logger.info(f"LLM 推理过程: {parse_result['llm_reasoning']}")
 
                 # 如果解析出了订单 ID，使用解析出的
                 if parse_result.get('order_id') and not order_id:
@@ -163,64 +162,72 @@ class AgentManager:
                     query_request['order_id'] = order_id
                     logger.info(f"使用解析出的订单 ID: {order_id}")
             else:
-                # 使用规则匹配
+                # 使用规则匹配（回退到规则模式）
+                recommended_agents = []
                 needs_order = self._needs_order_info(user_query, order_id)
                 needs_logistics = self._needs_logistics_info(user_query, order_id)
+                
+                if needs_order:
+                    recommended_agents.append('order_agent')
+                if needs_logistics:
+                    recommended_agents.append('logistics_agent')
+                
+                logger.info(f"规则匹配 - 推荐的 Agent: {recommended_agents}")
             
-            logger.info(f"智能体分配 - 订单查询: {needs_order}, 物流查询: {needs_logistics}")
+            logger.info(f"最终调用的 Agent: {recommended_agents}")
             
-            # 记录任务分发
-            if needs_order:
-                self._add_interaction(
-                    self.summary_agent.name,
-                    self.order_agent.name,
-                    "TASK_DISPATCH",
-                    f"查询订单: {order_id if order_id else '从查询中提取'}"
-                )
+            # 记录任务分发（基于推荐的 Agent 列表）
+            for agent_name in recommended_agents:
+                if agent_name == 'order_agent':
+                    self._add_interaction(
+                        self.summary_agent.name,
+                        self.order_agent.name,
+                        "TASK_DISPATCH",
+                        f"查询订单: {order_id if order_id else '从查询中提取'}"
+                    )
+                elif agent_name == 'logistics_agent':
+                    self._add_interaction(
+                        self.summary_agent.name,
+                        self.logistics_agent.name,
+                        "TASK_DISPATCH",
+                        f"查询物流: {order_id if order_id else '从查询中提取'}"
+                    )
             
-            if needs_logistics:
-                self._add_interaction(
-                    self.summary_agent.name,
-                    self.logistics_agent.name,
-                    "TASK_DISPATCH",
-                    f"查询物流: {order_id if order_id else '从查询中提取'}"
-                )
-            
-            # 并行执行订单查询和物流查询
+            # 并行执行 Agent 查询（基于推荐的 Agent 列表）
             tasks = []
             order_result = None
             logistics_result = None
             
-            if needs_order:
-                tasks.append(self.order_agent.process_request(query_request))
-            if needs_logistics:
-                tasks.append(self.logistics_agent.process_request(query_request))
+            for agent_name in recommended_agents:
+                if agent_name == 'order_agent':
+                    tasks.append(self.order_agent.process_request(query_request))
+                elif agent_name == 'logistics_agent':
+                    tasks.append(self.logistics_agent.process_request(query_request))
+            
+            # 如果没有推荐的 Agent，记录警告
+            if not tasks:
+                logger.warning("没有推荐任何 Agent，无法处理查询")
             
             if tasks:
                 results = await asyncio.gather(*tasks, return_exceptions=True)
                 
-                # 解析结果
-                result_index = 0
-                if needs_order:
-                    order_result = results[result_index]
-                    result_index += 1
-                    if isinstance(order_result, Exception):
-                        logger.error(f"订单查询智能体异常: {order_result}")
-                        order_result = {
-                            "agent": self.order_agent.name,
+                # 解析结果（按推荐的 Agent 顺序）
+                for i, agent_name in enumerate(recommended_agents):
+                    result = results[i]
+                    
+                    if isinstance(result, Exception):
+                        logger.error(f"{agent_name} 查询异常: {result}")
+                        result = {
+                            "agent": agent_name,
                             "success": False,
-                            "error": f"智能体异常: {str(order_result)}"
+                            "error": f"智能体异常: {str(result)}"
                         }
-                
-                if needs_logistics:
-                    logistics_result = results[result_index]
-                    if isinstance(logistics_result, Exception):
-                        logger.error(f"物流查询智能体异常: {logistics_result}")
-                        logistics_result = {
-                            "agent": self.logistics_agent.name,
-                            "success": False,
-                            "error": f"智能体异常: {str(logistics_result)}"
-                        }
+                    
+                    # 根据 Agent 名称赋值结果
+                    if agent_name == 'order_agent':
+                        order_result = result
+                    elif agent_name == 'logistics_agent':
+                        logistics_result = result
             
             # 汇总结果
             logger.info("汇总查询结果，生成回复")
